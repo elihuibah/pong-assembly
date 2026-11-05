@@ -361,3 +361,13 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# DOSBox: herramientas de MASM (se descargan aparte)
+dosbox/TOOLS/
+
+# DOSBox: archivos generados al ensamblar
+dosbox/*.OBJ
+dosbox/*.MAP
+dosbox/*.LST
+dosbox/*.CRF
+dosbox/*.EXE
