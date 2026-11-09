@@ -3,7 +3,9 @@ STACK SEGMENT PARA STACK
 STACK ENDS
 
 DATA SEGMENT PARA 'DATA'
-
+	
+	TIME_AUX DB 0 ; Variable usada al checar si el tiempo ha cambiado
+	
 	BALL_X DW 0Ah ; Posición en x (columna) de la pelota
 	BALL_Y DW 0Ah ; Posición en y (línea) de la pelota
 	BALL_SIZE DW 04h ; Tamaño de la pelota (cuántos pixeles tiene la pelota en ancho y largo)
@@ -31,7 +33,18 @@ CODE SEGMENT PARA 'CODE'
 		MOV BL,00h ; Elegir el color negro como el color de fondo
 		INT 10h ; Ejecutar la cofiguración
 		
-		CALL DRAW_BALL
+		CHECK_TIME:
+			MOV AH,2Ch ; Obtener el tiempo del sistema
+			INT 21h ; CH = hora, CL = minuto, DH = segundo, DL = 1/100 segundos
+					
+			CMP DL,TIME_AUX	; ¿es el tiempo actual igual al anterior (TIME_AUX)?
+			JE CHECK_TIME   ; si es el mismo, checar de nuevo
+			; si es diferente, entonces dibujar, mover, y demás...
+			
+			MOV TIME_AUX,DL ; Actualizar tiempo	
+			CALL DRAW_BALL
+			
+			JMP CHECK_TIME ; Después de lo anterior, checar el tiempo de nuevo
 
 		RET
 	MAIN ENDP
