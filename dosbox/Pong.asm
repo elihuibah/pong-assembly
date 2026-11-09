@@ -87,10 +87,16 @@ CODE SEGMENT PARA 'CODE'
 		SUB AX,WINDOW_BOUNDS
 		CMP BALL_X,AX					; Comparar BALL_X con el límite derecho de la pantalla (BALL_X > WINDOW_WIDTH - BALL_SIZE - WINDOW_BOUNDS)
 		JG RESET_POSITION				; Si resulta ser mayor, restablecer posición
+		JMP MOVE_BALL_VERTICALLY
 		
+		RESET_POSITION:
+			CALL RESET_BALL_POSITION	; Restablecer la posición de la pelota al centro de la pantalla
+			RET
+			
 		; Mover la pelota verticalmente
-		MOV AX,BALL_VELOCITY_Y
-		ADD BALL_Y,AX	
+		MOVE_BALL_VERTICALLY:
+			MOV AX,BALL_VELOCITY_Y
+			ADD BALL_Y,AX	
 		
 		; Checar si la pelota ha pasado el límite superior (BALL_Y < 0 + WINDOW_BOUNDS)
 		; Si colisiona, revertir la velocidad en el eje Y
@@ -106,14 +112,70 @@ CODE SEGMENT PARA 'CODE'
 		CMP BALL_Y,AX					; Comparar BALL_Y con el límite inferior de la pantalla (BALL_Y > WINDOW_HEIGHT - BALL_SIZE - WINDOW_BOUNDS)
 		JG NEG_VELOCITY_Y				; Si resulta ser mayor, revertir la velocidad en el eje Y
 		
-		RET
+		; Checar si la pelota está colisionando con la paleta derecha
+		; maxx1 > minx2 && minx1 < maxx2 && maxy1 > miny2 && miny1 < maxy2
+		; BALL_X + BALL_SIZE > PADDLE_RIGHT_X && BALL_X < PADDLE_RIGHT_X + PADDLE_WIDTH && BALL_Y + BALL_SIZE > PADDLE_RIGHT_Y && BALL_Y < PADDLE_RIGHT_Y + PADDLE_HEIGHT
+		MOV AX,BALL_X
+		ADD AX,BALL_SIZE
+		CMP AX,PADDLE_RIGHT_X
+		JNG CHECK_COLLISION_WITH_LEFT_PADDLE ; Si no hay colisiones, checar la paleta izquierda
 		
-		RESET_POSITION:
-			CALL RESET_BALL_POSITION	; Restablecer la posición de la pelota al centro de la pantalla
-			RET
+		MOV AX,PADDLE_RIGHT_X
+		ADD AX,PADDLE_WIDTH
+		CMP BALL_X,AX
+		JNL CHECK_COLLISION_WITH_LEFT_PADDLE ; Si no hay colisiones, checar la paleta izquierda
+		
+		MOV AX,BALL_Y
+		ADD AX,BALL_SIZE
+		CMP AX,PADDLE_RIGHT_Y
+		JNG CHECK_COLLISION_WITH_LEFT_PADDLE ; Si no hay colisiones, checar la paleta izquierda
+		
+		MOV AX,PADDLE_RIGHT_Y
+		ADD AX,PADDLE_HEIGHT
+		CMP BALL_Y,AX
+		JNL CHECK_COLLISION_WITH_LEFT_PADDLE ; Si no hay colisiones, checar la paleta izquierda
+		
+		; Si se llega a este punto, la pelota está colisionando con la paleta derecha
+		JMP NEG_VELOCITY_X				
+		
+		; Checar si la pelota está colisionando con la paleta izquierda
+		CHECK_COLLISION_WITH_LEFT_PADDLE:
+		; maxx1 > minx2 && minx1 < maxx2 && maxy1 > miny2 && miny1 < maxy2
+		; BALL_X + BALL_SIZE > PADDLE_LEFT_X && BALL_X < PADDLE_LEFT_X + PADDLE_WIDTH
+		; && BALL_Y + BALL_SIZE > PADDLE_LEFT_Y && BALL_Y < PADDLE_LEFT_Y + PADDLE_HEIGHT
+		MOV AX,BALL_X
+		ADD AX,BALL_SIZE
+		CMP AX,PADDLE_LEFT_X
+		JNG EXIT_COLLISION_CHECK 		; Si no hay colisión, salir del procedure
+			
+		MOV AX,PADDLE_LEFT_X
+		ADD AX,PADDLE_WIDTH
+		CMP BALL_X,AX
+		JNL EXIT_COLLISION_CHECK 		; Si no hay colisión, salir del procedure
+			
+		MOV AX,BALL_Y
+		ADD AX,BALL_SIZE
+		CMP AX,PADDLE_LEFT_Y
+		JNG EXIT_COLLISION_CHECK 		; Si no hay colisión, salir del procedure
+			
+		MOV AX,PADDLE_LEFT_Y
+		ADD AX,PADDLE_HEIGHT
+		CMP BALL_Y,AX
+		JNL EXIT_COLLISION_CHECK 		; Si no hay colisión, salir del procedure
+			
+		; Si se llega a este punto, la pelota está colisionando con la paleta derecha
+
+		JMP NEG_VELOCITY_X
 		
 		NEG_VELOCITY_Y:
 			NEG BALL_VELOCITY_Y 		; Revertir la velocidad del eje Y de la pelota (BALL_VELOCITY_Y = -BALL_VELOCITY_Y)
+			RET
+			
+		NEG_VELOCITY_X:
+			NEG BALL_VELOCITY_X			; Revertir la velocidad horizontal de la pelota
+			RET	
+			
+		EXIT_COLLISION_CHECK:
 			RET
 			
 	MOVE_BALL ENDP
