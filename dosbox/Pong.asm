@@ -17,6 +17,15 @@ DATA SEGMENT PARA 'DATA'
 	BALL_SIZE DW 04h ; Tamaño de la pelota (cuántos pixeles tiene la pelota en ancho y largo)
 	BALL_VELOCITY_X DW 05h ; Velocidad en el eje x de la pelota
 	BALL_VELOCITY_Y DW 02h ; Velocidad en el eje y de la pelota
+	
+	PADDLE_LEFT_X DW 0Ah
+	PADDLE_LEFT_Y DW 0Ah
+	
+	PADDLE_RIGHT_X DW 130h
+	PADDLE_RIGHT_Y DW 0Ah
+	
+	PADDLE_WIDTH DW 05h
+	PADDLE_HEIGHT DW 1Fh
 
 DATA ENDS
 
@@ -48,6 +57,8 @@ CODE SEGMENT PARA 'CODE'
 			
 			CALL MOVE_BALL
 			CALL DRAW_BALL
+			
+			CALL DRAW_PADDLES
 			
 			JMP CHECK_TIME ; Después de lo anterior, checar el tiempo de nuevo
 
@@ -132,6 +143,57 @@ CODE SEGMENT PARA 'CODE'
 			
 		RET
 	DRAW_BALL ENDP
+	
+	DRAW_PADDLES PROC NEAR
+		MOV CX,PADDLE_LEFT_X ; Establecer la columna inicial (x)
+		MOV DX,PADDLE_LEFT_Y ; Establecer la linea inicial (Y)
+		
+		DRAW_PADDLE_LEFT_HORIZONTAL:
+			MOV AH,0Ch ; Establecer configuración de dibujado de pixel
+			MOV AL,0Fh ; Elegir el color blanco como el color del pixel
+			MOV BH,00h ; Establecer el número de página
+			INT 10h ; Ejecutar la configuración
+			
+			INC CX	; CX = CX + 1
+			MOV AX,CX ; CX - PADDLE_LEFT_X > PADDLE_WIDTH (SÍ -> Ir a la siguiente línea, NO -> Ir a la siguiente columna)
+			SUB AX,PADDLE_LEFT_X
+			CMP AX,PADDLE_WIDTH
+			JNG DRAW_PADDLE_LEFT_HORIZONTAL
+			
+			MOV CX,PADDLE_LEFT_X ; El registro CX vuelve a la columna inicial
+			INC DX ; Avanzar una línea
+			
+			MOV AX,DX ; DX - PADDLE_LEFT_Y > PADDLE_HEIGHT (SÍ -> Salir de este proceso (procedure), NO -> continuar a la siguiente línea)
+			SUB AX,PADDLE_LEFT_Y
+			CMP AX,PADDLE_HEIGHT
+			JNG DRAW_PADDLE_LEFT_HORIZONTAL
+		
+		MOV CX,PADDLE_RIGHT_X ; Establecer la columna inicial (x)
+		MOV DX,PADDLE_RIGHT_Y ; Establecer la linea inicial (Y)
+		
+		DRAW_PADDLE_RIGHT_HORIZONTAL:
+			MOV AH,0Ch ; Establecer configuración de dibujado de pixel
+			MOV AL,0Fh ; Elegir el color blanco como el color del pixel
+			MOV BH,00h ; Establecer el número de página
+			INT 10h ; Ejecutar la configuración
+			
+			INC CX	; CX = CX + 1
+			MOV AX,CX ; CX - PADDLE_RIGHT_X > PADDLE_WIDTH (SÍ -> Ir a la siguiente línea, NO -> Ir a la siguiente columna)
+			SUB AX,PADDLE_RIGHT_X
+			CMP AX,PADDLE_WIDTH
+			JNG DRAW_PADDLE_RIGHT_HORIZONTAL
+			
+			MOV CX,PADDLE_RIGHT_X ; El registro CX vuelve a la columna inicial
+			INC DX ; Avanzar una línea
+			
+			MOV AX,DX ; DX - PADDLE_RIGHT_Y > PADDLE_HEIGHT (SÍ -> Salir de este proceso (procedure), NO -> continuar a la siguiente línea)
+			SUB AX,PADDLE_RIGHT_Y
+			CMP AX,PADDLE_HEIGHT
+			JNG DRAW_PADDLE_RIGHT_HORIZONTAL
+			
+		RET
+		
+	DRAW_PADDLES ENDP
 	
 	CLEAR_SCREEN PROC NEAR
 		MOV AH,00h ; Establecer configuración de modo de video
