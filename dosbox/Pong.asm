@@ -9,6 +9,8 @@ DATA SEGMENT PARA 'DATA'
 	BALL_X DW 0Ah ; Posición en x (columna) de la pelota
 	BALL_Y DW 0Ah ; Posición en y (línea) de la pelota
 	BALL_SIZE DW 04h ; Tamaño de la pelota (cuántos pixeles tiene la pelota en ancho y largo)
+	BALL_VELOCITY_X DW 05h ; Velocidad en el eje x de la pelota
+	BALL_VELOCITY_Y DW 02h ; Velocidad en el eje y de la pelota
 
 DATA ENDS
 
@@ -24,14 +26,7 @@ CODE SEGMENT PARA 'CODE'
 	POP AX							; Liberar el item de la parte superior del stack al registro AX
 	POP AX							; Liberar el item de la parte superior del stack al registro AX
 	
-		MOV AH,00h ; Establecer configuración de modo de video
-		MOV AL,0Dh ; Elegir el modo de video
-		INT 10h ; Ejecutar la configuración
-		
-		MOV AH,0Bh ; Establecer configuración
-		MOV BH,00h ; Color de fondo
-		MOV BL,00h ; Elegir el color negro como el color de fondo
-		INT 10h ; Ejecutar la cofiguración
+		CALL CLEAR_SCREEN
 		
 		CHECK_TIME:
 			MOV AH,2Ch ; Obtener el tiempo del sistema
@@ -42,12 +37,26 @@ CODE SEGMENT PARA 'CODE'
 			; si es diferente, entonces dibujar, mover, y demás...
 			
 			MOV TIME_AUX,DL ; Actualizar tiempo	
+			
+			CALL CLEAR_SCREEN
+			
+			CALL MOVE_BALL
 			CALL DRAW_BALL
 			
 			JMP CHECK_TIME ; Después de lo anterior, checar el tiempo de nuevo
 
 		RET
 	MAIN ENDP
+	
+	MOVE_BALL PROC NEAR
+	
+		MOV AX,BALL_VELOCITY_X
+		ADD BALL_X,AX
+		MOV AX,BALL_VELOCITY_Y
+		ADD BALL_Y,AX
+		
+		RET
+	MOVE_BALL ENDP
 	
 	DRAW_BALL PROC NEAR
 	
@@ -76,6 +85,19 @@ CODE SEGMENT PARA 'CODE'
 			
 		RET
 	DRAW_BALL ENDP
+	
+	CLEAR_SCREEN PROC NEAR
+		MOV AH,00h ; Establecer configuración de modo de video
+		MOV AL,0Dh ; Elegir el modo de video
+		INT 10h ; Ejecutar la configuración
+		
+		MOV AH,0Bh ; Establecer configuración
+		MOV BH,00h ; Color de fondo
+		MOV BL,00h ; Elegir el color negro como el color de fondo
+		INT 10h ; Ejecutar la cofiguración
+		
+		RET
+	CLEAR_SCREEN ENDP
 
 CODE ENDS
 END
