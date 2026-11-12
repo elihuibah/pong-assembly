@@ -42,8 +42,27 @@ int KEY_L = 0;
 bool running = true // if running is true, the game loop continues; if false, the game loop ends
 
 
+// Every pixel is painted black
+void ClearScreen() {
+    _asm {
+        lea edi, framebuffer; // edi addresses the first pixel
+        mov ecx, FB_W* FB_H;  // ecx = number of pixels (64,000)
+        mov eax, 0; // eax = color black
+        rep stosd;  // repeat ecx times: [EDI] = EAX, EDI +=4
+    }
+}
 
+void MoveBall() {
+    
+}
 
+void ReadKeys() {
+
+}
+
+void MovePaddles() {
+
+}
 
 int main()
 {
