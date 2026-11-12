@@ -114,7 +114,8 @@ CODE SEGMENT PARA 'CODE'
 		
 		; Checar si la pelota está colisionando con la paleta derecha
 		; maxx1 > minx2 && minx1 < maxx2 && maxy1 > miny2 && miny1 < maxy2
-		; BALL_X + BALL_SIZE > PADDLE_RIGHT_X && BALL_X < PADDLE_RIGHT_X + PADDLE_WIDTH && BALL_Y + BALL_SIZE > PADDLE_RIGHT_Y && BALL_Y < PADDLE_RIGHT_Y + PADDLE_HEIGHT
+		; BALL_X + BALL_SIZE > PADDLE_RIGHT_X && BALL_X < PADDLE_RIGHT_X + PADDLE_WIDTH
+		; && BALL_Y + BALL_SIZE > PADDLE_RIGHT_Y && BALL_Y < PADDLE_RIGHT_Y + PADDLE_HEIGHT
 		MOV AX,BALL_X
 		ADD AX,BALL_SIZE
 		CMP AX,PADDLE_RIGHT_X
@@ -184,7 +185,7 @@ CODE SEGMENT PARA 'CODE'
 		; Movimiento de la paleta izquierda
 		; Checar si alguna tecla está siendo presionada (NO -> Checar en la otra paleta)
 		MOV AH,01h
-		INT 16h
+		INT 16h 					   ; Registro de servicios de teclado
 		JZ CHECK_RIGHT_PADDLE_MOVEMENT ; ZF = 1, JZ -> Saltar Sí Zero
 		
 		; Checar cuál tecla está siendo presionada (AL = caracter ASCII)
