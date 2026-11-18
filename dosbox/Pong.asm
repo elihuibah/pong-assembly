@@ -10,6 +10,9 @@ DATA SEGMENT PARA 'DATA'
 	
 	TIME_AUX DB 0 						; Variable usada al checar si el tiempo ha cambiado
 	
+	TEXT_PLAYER_ONE_POINTS DW '0','$'   ; Texto con el puntaje del jugador izquierdo (jugador 1)
+	TEXT_PLAYER_TWO_POINTS DW '0','$'   ; Texto con el puntaje del jugador derecho (jugador 2)
+	
 	BALL_ORIGINAL_X DW 0A0h				; Posición en el eje x de la pelota al inicio de una partida
 	BALL_ORIGINAL_Y DW 64h				; Posición en el eje y de la pelota al inicio de una partida
 	BALL_X DW 0A0h 						; Posición actual en x (columna) de la pelota
@@ -20,9 +23,11 @@ DATA SEGMENT PARA 'DATA'
 	
 	PADDLE_LEFT_X DW 0Ah				; Posición actual en el eje x de la paleta izquierda
 	PADDLE_LEFT_Y DW 0Ah				; Posición actual en el eje y de la paleta izquierda
+	PLAYER_ONE_POINTS DB 0				; Puntaje actual del jugador de la paleta izquierda (jugador 1) 
 	
 	PADDLE_RIGHT_X DW 130h				; Posición actual en el eje x de la paleta derecha
 	PADDLE_RIGHT_Y DW 0Ah				; Posición actual en el eje y de la paleta derecha
+	PLAYER_TWO_POINTS DB 0			; Puntaje actual del jugador de la paleta derecha (jugador 2) 
 	
 	PADDLE_WIDTH DW 05h					; Ancho predeterminado de la paleta
 	PADDLE_HEIGHT DW 1Fh				; Altura predeterminada de la paleta
@@ -63,6 +68,8 @@ CODE SEGMENT PARA 'CODE'
 			CALL MOVE_PADDLES			; Mover las dos paletas (checar el presionado de teclas)
 			CALL DRAW_PADDLES			; Dibujar las dos paletas con las posiciones actualizadas
 			
+			CALL DRAW_UI				; Dibujar la interfaz de usuario del juego
+			
 			JMP CHECK_TIME 				; Después de lo anterior, checar el tiempo de nuevo
 
 		RET
@@ -78,7 +85,7 @@ CODE SEGMENT PARA 'CODE'
 		; Si colisiona, restablecer la posición
 		MOV AX,WINDOW_BOUNDS
 		CMP BALL_X,AX					; Comparar BALL_X con el límite izquierdo de la pantalla (0 + WINDOW_BOUNDS)
-		JL RESET_POSITION				; Si resulta ser menos, restablecer posición
+		JL GIVE_POINT_TO_PLAYER_TWO		; Si resulta ser menos, otorgar un punto al jugador 2 y restablecer posición
 		
 		; Checar si la pelota ha pasado el límite derecho (BALL_X > WINDOW_WIDTH - BALL_SIZE - WINDOW_BOUNDS)
 		; Si colisiona, restablecer la posición
@@ -86,11 +93,34 @@ CODE SEGMENT PARA 'CODE'
 		SUB AX,BALL_SIZE
 		SUB AX,WINDOW_BOUNDS
 		CMP BALL_X,AX					; Comparar BALL_X con el límite derecho de la pantalla (BALL_X > WINDOW_WIDTH - BALL_SIZE - WINDOW_BOUNDS)
-		JG RESET_POSITION				; Si resulta ser mayor, restablecer posición
+		JG GIVE_POINT_TO_PLAYER_ONE		; Si resulta ser mayor, otorgar un punto al jugador 1 y restablecer posición
 		JMP MOVE_BALL_VERTICALLY
 		
-		RESET_POSITION:
+		GIVE_POINT_TO_PLAYER_ONE:
+			INC PLAYER_ONE_POINTS		; Incrementar el puntaje del jugador 1
 			CALL RESET_BALL_POSITION	; Restablecer la posición de la pelota al centro de la pantalla
+			
+			CALL UPDATE_TEXT_PLAYER_ONE_POINTS ; Actualizar el texto del puntaje del jugador 1
+			
+			CMP PLAYER_ONE_POINTS,05h   ; Checar si este jugador ha logrado 5 puntos
+			JGE GAME_OVER				; Si este jugador tiene 5 puntos o más, el juego termina
+			RET
+		
+		GIVE_POINT_TO_PLAYER_TWO:
+			INC PLAYER_TWO_POINTS		; Incrementar el puntaje del jugador 2
+			CALL RESET_BALL_POSITION	; Restablecer la posición de la pelota al centro de la pantalla
+			
+			CALL UPDATE_TEXT_PLAYER_TWO_POINTS ; Actualizar el texto del puntaje del jugador 2
+			
+			CMP PLAYER_TWO_POINTS,05h   ; Checar si este jugador ha logrado 5 puntos
+			JGE GAME_OVER				; Si este jugador tiene 5 puntos o más, el juego termina
+			RET
+			
+		GAME_OVER:						; Alguno de los jugadores logra obtener 5 puntos
+			MOV PLAYER_ONE_POINTS,00h   ; Reiniciar el puntaje del jugador 1
+			MOV PLAYER_TWO_POINTS,00h   ; Reiniciar el puntaje del jugador 2
+			CALL UPDATE_TEXT_PLAYER_ONE_POINTS
+			CALL UPDATE_TEXT_PLAYER_TWO_POINTS
 			RET
 			
 		; Mover la pelota verticalmente
@@ -372,6 +402,62 @@ CODE SEGMENT PARA 'CODE'
 		RET
 		
 	DRAW_PADDLES ENDP
+	
+	DRAW_UI PROC NEAR
+	
+		; Dibujar el texto del puntaje del jugador izquierdo (jugador 1)
+		MOV AH,02h						; Establecer la posición del cursor
+		MOV BH,00h						; Establecer el número de página
+		MOV DH,04h						; Establecer fila
+		MOV DL,06h						; Establecer columna
+		INT 10h
+		
+		MOV AH,09h						; Escribir string a output estándar
+		LEA DX,TEXT_PLAYER_ONE_POINTS   ; Dar a DX un pointer al string de texto TEXT_PLAYER_ONE_POINTS
+		INT 21h							; Imprimir el string
+
+		; Dibujar el texto del puntaje del jugador derecho (jugador 1)
+		MOV AH,02h						; Establecer la posición del cursor
+		MOV BH,00h						; Establecer el número de página
+		MOV DH,04h						; Establecer fila
+		MOV DL,1Fh						; Establecer columna
+		INT 10h
+		
+		MOV AH,09h						; Escribir string a output estándar
+		LEA DX,TEXT_PLAYER_TWO_POINTS   ; Dar a DX un pointer al string de texto TEXT_PLAYER_TWO_POINTS
+		INT 21h							; Imprimir el string
+		
+		
+		RET
+	DRAW_UI ENDP
+	
+	UPDATE_TEXT_PLAYER_ONE_POINTS PROC NEAR
+		
+		XOR AX,AX
+		MOV AL,PLAYER_ONE_POINTS		; Dado, por ejemplo que el jugador 1 tiene 2 puntos, entonces AL,2
+		
+		; Ahora, antes de imprimir en pantalla, se precisa convertir el valor decimal a su caracter en código ASCII
+		; Se puede realizar aquello al agregar 30h (número a ASCII)
+		; Y al sustraer 30h (ASCII a número)
+		ADD AL,30h						; AL,'2'
+		MOV [TEXT_PLAYER_ONE_POINTS],AL
+		
+		RET
+	UPDATE_TEXT_PLAYER_ONE_POINTS ENDP
+	
+	UPDATE_TEXT_PLAYER_TWO_POINTS PROC NEAR
+	
+		XOR AX,AX
+		MOV AL,PLAYER_TWO_POINTS		; Dado, por ejemplo que el jugador 2 tiene 2 puntos, entonces AL,2
+		
+		; Ahora, antes de imprimir en pantalla, se precisa convertir el valor decimal a su caracter en código ASCII
+		; Se puede realizar aquello al agregar 30h (número a ASCII)
+		; Y al sustraer 30h (ASCII a número)
+		ADD AL,30h						; AL,'2'
+		MOV [TEXT_PLAYER_TWO_POINTS],AL
+		
+		RET
+	UPDATE_TEXT_PLAYER_TWO_POINTS ENDP
 	
 	CLEAR_SCREEN PROC NEAR				; Limpíar la pantalla al reiniciar el modo de video
 		MOV AH,00h 						; Establecer configuración de modo de video
