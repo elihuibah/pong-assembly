@@ -23,7 +23,9 @@
 - Se cre贸 el milestone "Avance de la Semana 2" con fecha l铆mite del 12 de noviembre.
 - Se cre贸 el tablero de proyecto "Pingue-Pongue" (nombre del equipo) con sus respectivas columnas "Por Hacer", "En Progreso" y "Hecho".
 - Se crearon ramas de trabajo: feature/keyboard-input en la que se trabaj贸 con los registros encargados de los servicios de entrada de teclado en la arquitectura de ensamblador 8086; feature/collision en la que se trabaj贸 con la colisi贸n de la pelota y las paletas; y data_segment_port, en la que se est谩 trabajando el 'port' del c贸digo y l贸gica desarrollada en DOSBox a Visual Studio con c贸digo embebido dentro de C++.
-
+- Se inicio el proceso de embeber los avances de ensamblador a C++ en Visual Studio.
+- Se agregaron las primeras variables globales del entorno: tama駉 de pelota, paddlets y de ventana de juego.
+- Se agregaron m閠odos para identificar las porciones de c骴igo ensamblador y se馻ralos con m閠odos.
 ### Dificultades
 
 - Se lidi贸 con un push rechazado (non-fast-forward).
