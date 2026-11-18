@@ -20,9 +20,11 @@ DATA SEGMENT PARA 'DATA'
 	
 	PADDLE_LEFT_X DW 0Ah				; Posición actual en el eje x de la paleta izquierda
 	PADDLE_LEFT_Y DW 0Ah				; Posición actual en el eje y de la paleta izquierda
+	PADDLE_LEFT_POINTS DB 0				; Puntaje actual del jugador de la paleta izquierda (jugador 1) 
 	
 	PADDLE_RIGHT_X DW 130h				; Posición actual en el eje x de la paleta derecha
 	PADDLE_RIGHT_Y DW 0Ah				; Posición actual en el eje y de la paleta derecha
+	PADDLE_RIGHT_POINTS DB 0			; Puntaje actual del jugador de la paleta derecha (jugador 2) 
 	
 	PADDLE_WIDTH DW 05h					; Ancho predeterminado de la paleta
 	PADDLE_HEIGHT DW 1Fh				; Altura predeterminada de la paleta
@@ -78,7 +80,7 @@ CODE SEGMENT PARA 'CODE'
 		; Si colisiona, restablecer la posición
 		MOV AX,WINDOW_BOUNDS
 		CMP BALL_X,AX					; Comparar BALL_X con el límite izquierdo de la pantalla (0 + WINDOW_BOUNDS)
-		JL RESET_POSITION				; Si resulta ser menos, restablecer posición
+		JL GIVE_POINT_TO_PLAYER_TWO		; Si resulta ser menos, otorgar un punto al jugador 2 y restablecer posición
 		
 		; Checar si la pelota ha pasado el límite derecho (BALL_X > WINDOW_WIDTH - BALL_SIZE - WINDOW_BOUNDS)
 		; Si colisiona, restablecer la posición
@@ -86,11 +88,28 @@ CODE SEGMENT PARA 'CODE'
 		SUB AX,BALL_SIZE
 		SUB AX,WINDOW_BOUNDS
 		CMP BALL_X,AX					; Comparar BALL_X con el límite derecho de la pantalla (BALL_X > WINDOW_WIDTH - BALL_SIZE - WINDOW_BOUNDS)
-		JG RESET_POSITION				; Si resulta ser mayor, restablecer posición
+		JG GIVE_POINT_TO_PLAYER_ONE		; Si resulta ser mayor, otorgar un punto al jugador 1 y restablecer posición
 		JMP MOVE_BALL_VERTICALLY
 		
-		RESET_POSITION:
+		GIVE_POINT_TO_PLAYER_ONE:
+			INC PADDLE_LEFT_POINTS		; Incrementar el puntaje del jugador 1
 			CALL RESET_BALL_POSITION	; Restablecer la posición de la pelota al centro de la pantalla
+			
+			CMP PADDLE_LEFT_POINTS,05h  ; Checar si este jugador ha logrado 5 puntos
+			JGE GAME_OVER				; Si este jugador tiene 5 puntos o más, el juego termina
+			RET
+		
+		GIVE_POINT_TO_PLAYER_TWO:
+			INC PADDLE_RIGHT_POINTS		; Incrementar el puntaje del jugador 2
+			CALL RESET_BALL_POSITION	; Restablecer la posición de la pelota al centro de la pantalla
+			
+			CMP PADDLE_RIGHT_POINTS,05h ; Checar si este jugador ha logrado 5 puntos
+			JGE GAME_OVER				; Si este jugador tiene 5 puntos o más, el juego termina
+			RET
+			
+		GAME_OVER:						; Alguno de los jugadores logra obtener 5 puntos
+			MOV PADDLE_LEFT_POINTS,00h  ; Reiniciar el puntaje del jugador 1
+			MOV PADDLE_RIGHT_POINTS,00h ; Reiniciar el puntaje del jugador 2
 			RET
 			
 		; Mover la pelota verticalmente
