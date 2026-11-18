@@ -10,6 +10,9 @@ DATA SEGMENT PARA 'DATA'
 	
 	TIME_AUX DB 0 						; Variable usada al checar si el tiempo ha cambiado
 	
+	TEXT_PLAYER_ONE_POINTS DW '0','$'   ; Texto con el puntaje del jugador izquierdo (jugador 1)
+	TEXT_PLAYER_TWO_POINTS DW '0','$'   ; Texto con el puntaje del jugador derecho (jugador 2)
+	
 	BALL_ORIGINAL_X DW 0A0h				; Posición en el eje x de la pelota al inicio de una partida
 	BALL_ORIGINAL_Y DW 64h				; Posición en el eje y de la pelota al inicio de una partida
 	BALL_X DW 0A0h 						; Posición actual en x (columna) de la pelota
@@ -64,6 +67,8 @@ CODE SEGMENT PARA 'CODE'
 			
 			CALL MOVE_PADDLES			; Mover las dos paletas (checar el presionado de teclas)
 			CALL DRAW_PADDLES			; Dibujar las dos paletas con las posiciones actualizadas
+			
+			CALL DRAW_UI				; Dibujar la interfaz de usuario del juego
 			
 			JMP CHECK_TIME 				; Después de lo anterior, checar el tiempo de nuevo
 
@@ -391,6 +396,34 @@ CODE SEGMENT PARA 'CODE'
 		RET
 		
 	DRAW_PADDLES ENDP
+	
+	DRAW_UI PROC NEAR
+	
+		; Dibujar el texto del puntaje del jugador izquierdo (jugador 1)
+		MOV AH,02h						; Establecer la posición del cursor
+		MOV BH,00h						; Establecer el número de página
+		MOV DH,04h						; Establecer fila
+		MOV DL,06h						; Establecer columna
+		INT 10h
+		
+		MOV AH,09h						; Escribir string a output estándar
+		LEA DX,TEXT_PLAYER_ONE_POINTS   ; Dar a DX un pointer al string de texto TEXT_PLAYER_ONE_POINTS
+		INT 21h							; Imprimir el string
+
+		; Dibujar el texto del puntaje del jugador derecho (jugador 1)
+		MOV AH,02h						; Establecer la posición del cursor
+		MOV BH,00h						; Establecer el número de página
+		MOV DH,04h						; Establecer fila
+		MOV DL,1Fh						; Establecer columna
+		INT 10h
+		
+		MOV AH,09h						; Escribir string a output estándar
+		LEA DX,TEXT_PLAYER_TWO_POINTS   ; Dar a DX un pointer al string de texto TEXT_PLAYER_TWO_POINTS
+		INT 21h							; Imprimir el string
+		
+		
+		RET
+	DRAW_UI ENDP
 	
 	CLEAR_SCREEN PROC NEAR				; Limpíar la pantalla al reiniciar el modo de video
 		MOV AH,00h 						; Establecer configuración de modo de video
