@@ -62,3 +62,47 @@
   
 ### Dificultades
 - Al subir la rama nueva, Git rechazó el push porque la rama no tenía rama remota asociada: se resolvió con 'gir push -u origin feature/player-points'.
+
+## Semana 3 (13 - 19 de noviembre de 2026) - Leonardo Piedras
+
+### Revisión e Integración
+
+- Dividí el código de ensamblador para hacer el proceso de embeber en C++. Se crearon los métodos ClearScreen(), MoveBall(), ReadKeys(), MovePaddles(), DrawBall() y DrawPaddles(). Cada PROC del código de DOSBox ahora es una función de C++ con un bloque `__asm { }`, y se conservaron los mismos nombres de variables del tutorial (BALL_X, PADDLE_LEFT_Y, etc.) para que coincidan con el código de Elihú.
+- El DATA SEGMENT se convirtió en variables globales de C++ de tipo `short` (16 bits, equivalente a DW), siguiendo la Regla 1 del plan de trabajo. Así el código conserva los registros AX, CX y DX del original.
+- Se reemplazaron las interrupciones de DOS, que no pueden ejecutarse en Windows porque los programas corren en modo protegido:
+  - INT 10h (dibujar pixel) → escritura directa en una pantalla virtual (`framebuffer`) de 320×200, un byte por pixel.
+  - INT 16h (teclado) → función ReadKeys() con GetAsyncKeyState.
+  - INT 21h, AH=2Ch (reloj) → Sleep(55), que da aproximadamente la misma velocidad que en DOSBox.
+- Se creó la ventana de Windows, la paleta de 16 colores EGA (modo de video 0Dh) y el ciclo principal en main(), que llama a los métodos en el mismo orden que el ciclo CHECK_TIME del código original.
+- Resultado: el juego corre en Visual Studio con la pelota rebotando y las dos paletas moviéndose.
+
+### Avance en C++
+
+- ClearScreen(): Reemplaza CLEAR_SCREEN. En lugar de reiniciar el modo de video en cada cuadro (lo que causaba parpadeo en DOS), llena la pantalla virtual con el color 0 (negro) usando `lea edi, framebuffer` y `rep stosb`, que repite la escritura 64,000 veces.
+
+- MoveBall(): Porte de MOVE_BALL con cambios mínimos: mueve la pelota, la regresa al centro si sale por la izquierda o la derecha, invierte la velocidad vertical con `neg` al tocar los bordes superior e inferior, y detecta la colisión con cada paleta mediante cuatro comparaciones de traslape de rectángulos. Como no se puede usar RET dentro de un bloque `__asm`, cada RET se sustituyó por un salto a la etiqueta EXIT_MOVE_BALL, y el código de RESET_BALL_POSITION se colocó directamente dentro de la función.
+
+- MovePaddles(): Porte de MOVE_PADDLES. Ya no lee el teclado con INT 16h: revisa las variables KEY_W, KEY_S, KEY_O y KEY_L que llena ReadKeys(). Conserva los límites superior e inferior de cada paleta. Con este cambio, las dos paletas pueden moverse al mismo tiempo, que era un requisito que la versión de DOS no cumplía porque INT 16h solo lee una tecla por cuadro.
+
+- DrawBall(): Porte de DRAW_BALL. Conserva los ciclos anidados con CX (columna) y DX (línea) del original. La parte de INT 10h se reemplazó por el cálculo de la posición del pixel (`y * 320 + x`, usando `movzx` e `imul`) y la escritura del color 0Fh (blanco) con `mov byte ptr framebuffer[eax], 0Fh`. No se llama a funciones de C++ dentro del ciclo (Regla 2).
+
+- DrawPaddles(): Igual que DrawBall(), pero dibuja la paleta izquierda y la derecha con PADDLE_WIDTH y PADDLE_HEIGHT.
+
+- ReadKeys(): Función nueva en C++ que sustituye a INT 16h. Usa GetAsyncKeyState para saber si W, S, O, L o Esc están presionadas y guarda 1 o 0 en las variables que lee el ensamblador. Esc termina el juego.
+
+### Conceptos Revisados
+
+- Diferencia entre modo real (DOS) y modo protegido (Windows), y por qué las interrupciones INT 10h, 16h y 21h no se pueden usar en un programa de Windows.
+- Registros de 16 bits (AX, CX, DX) contra 32 bits (EAX), y tamaños de datos: byte, word (DW = short) y dword.
+- Instrucciones: mov, add, sub, inc, neg, cmp, saltos con signo (jl, jg, jng, jnl, je), movzx, imul de tres operandos, lea y rep stosb.
+- Reglas del ensamblador en línea de Visual Studio (`__asm`): solo compila en x86/Win32, no se permite RET ni INT, y se pueden usar variables de C++ por nombre.
+- Pantalla virtual (framebuffer): un arreglo donde cada byte es un pixel, y una paleta que traduce el número de color a un color real.
+- C++: #define, variables globales, short y bool, funciones, arreglos, structs, operador ternario y máscaras de bits (`& 0x8000`).
+- Uso del depurador de Visual Studio: breakpoints, ventana Watch y ventana Registers.
+
+### Dificultades
+
+- Al ejecutar el programa aparecía el error "Could not find a part of the path …\Debug\AssemblyApp.exe". El problema era que la compilación no se completaba, así que no se generaba el ejecutable. Se resolvió configurando el proyecto para x86, porque el ensamblador en línea no funciona en x64.
+- Las variables se habían declarado como `int` y el código usaba EAX. Se cambiaron a `short` y AX para cumplir la Regla 1 del plan de trabajo.
+- La pantalla virtual estaba declarada de 240 líneas en lugar de 200 (FB_H = 240), lo que hacía que la pelota rebotara antes del borde inferior de la ventana. [Confirmar: corregido a 200.]
+- Fue necesario estudiar conceptos nuevos de C++ y de la API de Windows (ventanas, mensajes, paleta) para poder entender y explicar el código, además del ensamblador.
