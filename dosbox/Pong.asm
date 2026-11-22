@@ -11,11 +11,19 @@ DATA SEGMENT PARA 'DATA'
 	TIME_AUX DB 0 						; Variable usada al checar si el tiempo ha cambiado
 	GAME_ACTIVE DB 1					; Indica si el juego está activo (1 -> Sí, 0 -> No (game over))
 	WINNER_INDEX DB 0					; El índice del jugador ganador (1 -> Jugador 1, 2 -> Jugador dos)
+	CURRENT_SCENE DB 0					; El índice de la escena o vista actual (0 -> menú principal, 1 -> juego)
+	EXITING_GAME DB 0
 	
 	TEXT_PLAYER_ONE_POINTS DW '0','$'   ; Texto con el puntaje del jugador izquierdo (jugador 1)
 	TEXT_PLAYER_TWO_POINTS DW '0','$'   ; Texto con el puntaje del jugador derecho (jugador 2)
 	TEXT_GAME_OVER_TITLE DB 'GAME OVER','$' ; Texto del título del menú de Game 
-	TEXT_GAME_OVER_WINNER DB 'Player 0 won','$' ; Texto con el jugador ganador de la partida
+	TEXT_GAME_OVER_WINNER DB 'Player 0 won!','$' ; Texto con el jugador ganador de la partida
+	TEXT_GAME_OVER_PLAY_AGAIN DB 'Press R to play again','$' ; Texto que indica el mensaje de nueva partida
+	TEXT_GAME_OVER_MAIN_MENU DB 'Press E to exit to main menu','$' ; Texto que indica el mensaje de menú
+	TEXT_MAIN_MENU_TITLE DB 'PONG ASSEMBLY - MAIN MENU','$' ; Texto que indica el título del menú principal
+	TEXT_MAIN_MENU_SINGLEPLAYER DB 'SINGLEPLAYER - S KEY','$' ; Texto que indica el modo de un sólo jugador
+	TEXT_MAIN_MENU_MULTIPLAYER DB 'MULTIPLAYER - M KEY','$' ; Texto que indica el modo multijugador
+	TEXT_MAIN_MENU_EXIT DB 'EXIT GAME - E KEY','$' ; Texto que indica cómo salir del juego
 	
 	BALL_ORIGINAL_X DW 0A0h				; Posición en el eje x de la pelota al inicio de una partida
 	BALL_ORIGINAL_Y DW 64h				; Posición en el eje y de la pelota al inicio de una partida
@@ -55,6 +63,12 @@ CODE SEGMENT PARA 'CODE'
 		
 		CHECK_TIME:						; Bucle de chequeo de tiempo
 			
+			CMP EXITING_GAME,01h
+			JE START_EXIT_PROCESS
+			
+			CMP CURRENT_SCENE,00h
+			JE SHOW_MAIN_MENU
+			
 			CMP GAME_ACTIVE,00h
 			JE SHOW_GAME_OVER
 			
@@ -82,6 +96,13 @@ CODE SEGMENT PARA 'CODE'
 			SHOW_GAME_OVER:
 				CALL DRAW_GAME_OVER_MENU
 				JMP CHECK_TIME
+				
+			SHOW_MAIN_MENU:
+				CALL DRAW_MAIN_MENU
+				JMP CHECK_TIME
+			START_EXIT_PROCESS:
+				CALL CONCLUDE_EXIT_GAME
+				
 		RET
 	MAIN ENDP
 	
@@ -285,7 +306,6 @@ CODE SEGMENT PARA 'CODE'
 			FIX_PADDLE_LEFT_BOTTOM_POSITION:
 				MOV PADDLE_LEFT_Y,AX
 				JMP CHECK_RIGHT_PADDLE_MOVEMENT
-		
 		
 		; Movimiento de la paleta derecha
 		CHECK_RIGHT_PADDLE_MOVEMENT:
@@ -494,7 +514,7 @@ CODE SEGMENT PARA 'CODE'
 		INT 10h
 		
 		MOV AH,09h						; Escribir string a output estándar
-		LEA DX,TEXT_GAME_OVER_TITLE	 	; Dar a DX un pointer al string de texto TEXT_PLAYER_TWO_POINTS
+		LEA DX,TEXT_GAME_OVER_TITLE	 	; Dar a DX un pointer
 		INT 21h							; Imprimir el string
 		
 		; Muestra al ganador
@@ -507,15 +527,141 @@ CODE SEGMENT PARA 'CODE'
 		CALL UDPATE_WINNER_TEXT
 		
 		MOV AH,09h						; Escribir string a output estándar
-		LEA DX,TEXT_GAME_OVER_WINNER 	; Dar a DX un pointer al string de texto TEXT_PLAYER_TWO_POINTS
+		LEA DX,TEXT_GAME_OVER_WINNER 	; Dar a DX un pointer
+		INT 21h							; Imprimir el string
+		
+		; Muestra el texto acerca de jugar de nuevo
+		MOV AH,02h						; Establecer la posición del cursor
+		MOV BH,00h						; Establecer el número de página
+		MOV DH,08h						; Establecer fila
+		MOV DL,04h						; Establecer columna
+		INT 10h
+				
+		MOV AH,09h						; Escribir string a output estándar
+		LEA DX,TEXT_GAME_OVER_PLAY_AGAIN	; Dar a DX un pointer
+		INT 21h							; Imprimir el string
+		
+		; Muestra el texto del menú principal
+		MOV AH,02h						; Establecer la posición del cursor
+		MOV BH,00h						; Establecer el número de página
+		MOV DH,0Ah						; Establecer fila
+		MOV DL,04h						; Establecer columna
+		INT 10h
+				
+		MOV AH,09h						; Escribir string a output estándar
+		LEA DX,TEXT_GAME_OVER_MAIN_MENU	; Dar a DX un pointer
 		INT 21h							; Imprimir el string
 		
 		; Espera a que una tecla sea presionada
 		MOV AH,00h
 		INT 16h
 		
+		; Si la tecla presionada es 'R' o 'r', reiniciar el juego (nueva partida)
+		CMP AL,'R'
+		JE RESTART_GAME
+		CMP AL,'r'
+		JE RESTART_GAME
+		; Si la tecla presionada es 'E' o 'e', salir al menú principal
+		CMP AL,'E'
+		JE EXIT_TO_MAIN_MENU
+		CMP AL,'e'
+		JE EXIT_TO_MAIN_MENU
 		RET
+		
+		RESTART_GAME:
+			MOV GAME_ACTIVE,01h
+			RET
+		
+		EXIT_TO_MAIN_MENU:
+			MOV GAME_ACTIVE,00h
+			MOV CURRENT_SCENE,00h
+			RET
+		
 	DRAW_GAME_OVER_MENU ENDP
+	
+	DRAW_MAIN_MENU PROC NEAR
+		
+		CALL CLEAR_SCREEN
+		
+		; Mostrar el título del menú principal
+		MOV AH,02h						; Establecer la posición del cursor
+		MOV BH,00h						; Establecer el número de página
+		MOV DH,04h						; Establecer fila
+		MOV DL,04h						; Establecer columna
+		INT 10h
+		
+		MOV AH,09h						; Escribir string a output estándar
+		LEA DX,TEXT_MAIN_MENU_TITLE	 	; Dar a DX un pointer
+		INT 21h							; Imprimir el string
+		
+		; Mostrar el texto del modo de un sólo jugador
+		MOV AH,02h						; Establecer la posición del cursor
+		MOV BH,00h						; Establecer el número de página
+		MOV DH,06h						; Establecer fila
+		MOV DL,04h						; Establecer columna
+		INT 10h
+		
+		MOV AH,09h						; Escribir string a output estándar
+		LEA DX,TEXT_MAIN_MENU_SINGLEPLAYER 	; Dar a DX un pointer
+		INT 21h							; Imprimir el string
+		
+		; Mostrar el texto del modo multijugador
+		MOV AH,02h						; Establecer la posición del cursor
+		MOV BH,00h						; Establecer el número de página
+		MOV DH,08h						; Establecer fila
+		MOV DL,04h						; Establecer columna
+		INT 10h
+		
+		MOV AH,09h						; Escribir string a output estándar
+		LEA DX,TEXT_MAIN_MENU_MULTIPLAYER 	; Dar a DX un pointer
+		INT 21h							; Imprimir el string
+		
+		; Mostrar el texto de la opción de salida del juego
+		MOV AH,02h						; Establecer la posición del cursor
+		MOV BH,00h						; Establecer el número de página
+		MOV DH,0Ah						; Establecer fila
+		MOV DL,04h						; Establecer columna
+		INT 10h
+		
+		MOV AH,09h						; Escribir string a output estándar
+		LEA DX,TEXT_MAIN_MENU_EXIT 	; Dar a DX un pointer
+		INT 21h							; Imprimir el string
+		
+		MAIN_MENU_WAIT_FOR_KEY:	
+		; Espera a que una tecla sea presionada
+			MOV AH,00h
+			INT 16h
+			
+			; Checar si alguna de las teclas fue presionada
+			CMP AL,'S'
+			JE START_SINGLEPLAYER
+			CMP AL,'s'
+			JE START_SINGLEPLAYER
+			
+			CMP AL,'M'
+			JE START_MULTIPLAYER
+			CMP AL,'m'
+			JE START_MULTIPLAYER
+			
+			CMP AL,'E'
+			JE EXIT_GAME
+			CMP AL,'e'
+			JE EXIT_GAME
+			JMP MAIN_MENU_WAIT_FOR_KEY
+		
+		START_SINGLEPLAYER:
+			MOV CURRENT_SCENE,01h
+			MOV GAME_ACTIVE,01h
+			RET
+			
+		START_MULTIPLAYER:
+			JMP MAIN_MENU_WAIT_FOR_KEY 	; TODO
+		
+		EXIT_GAME:
+			MOV EXITING_GAME,01h
+			RET
+		
+	DRAW_MAIN_MENU ENDP
 	
 	UDPATE_WINNER_TEXT PROC NEAR
 		
@@ -538,6 +684,17 @@ CODE SEGMENT PARA 'CODE'
 		
 		RET
 	CLEAR_SCREEN ENDP
+
+	CONCLUDE_EXIT_GAME PROC NEAR		; Vuelve hacia el modo de texto
+	
+		MOV AH,00h 						; Establecer configuración de modo de video
+		MOV AL,02h 						; Elegir el modo de video
+		INT 10h 						; Ejecutar la configuración
+		
+		MOV AH,4Ch						; Terminar el programa
+		INT 21h
+		
+	CONCLUDE_EXIT_GAME ENDP
 
 CODE ENDS
 END
