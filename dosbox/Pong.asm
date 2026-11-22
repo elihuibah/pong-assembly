@@ -12,6 +12,7 @@ DATA SEGMENT PARA 'DATA'
 	GAME_ACTIVE DB 1					; Indica si el juego está activo (1 -> Sí, 0 -> No (game over))
 	WINNER_INDEX DB 0					; El índice del jugador ganador (1 -> Jugador 1, 2 -> Jugador dos)
 	CURRENT_SCENE DB 0					; El índice de la escena o vista actual (0 -> menú principal, 1 -> juego)
+	EXITING_GAME DB 0
 	
 	TEXT_PLAYER_ONE_POINTS DW '0','$'   ; Texto con el puntaje del jugador izquierdo (jugador 1)
 	TEXT_PLAYER_TWO_POINTS DW '0','$'   ; Texto con el puntaje del jugador derecho (jugador 2)
@@ -62,6 +63,9 @@ CODE SEGMENT PARA 'CODE'
 		
 		CHECK_TIME:						; Bucle de chequeo de tiempo
 			
+			CMP EXITING_GAME,01h
+			JE START_EXIT_PROCESS
+			
 			CMP CURRENT_SCENE,00h
 			JE SHOW_MAIN_MENU
 			
@@ -96,6 +100,9 @@ CODE SEGMENT PARA 'CODE'
 			SHOW_MAIN_MENU:
 				CALL DRAW_MAIN_MENU
 				JMP CHECK_TIME
+			START_EXIT_PROCESS:
+				CALL CONCLUDE_EXIT_GAME
+				
 		RET
 	MAIN ENDP
 	
@@ -620,13 +627,40 @@ CODE SEGMENT PARA 'CODE'
 		LEA DX,TEXT_MAIN_MENU_EXIT 	; Dar a DX un pointer
 		INT 21h							; Imprimir el string
 		
+		MAIN_MENU_WAIT_FOR_KEY:	
 		; Espera a que una tecla sea presionada
-		MOV AH,00h
-		INT 16h
+			MOV AH,00h
+			INT 16h
+			
+			; Checar si alguna de las teclas fue presionada
+			CMP AL,'S'
+			JE START_SINGLEPLAYER
+			CMP AL,'s'
+			JE START_SINGLEPLAYER
+			
+			CMP AL,'M'
+			JE START_MULTIPLAYER
+			CMP AL,'m'
+			JE START_MULTIPLAYER
+			
+			CMP AL,'E'
+			JE EXIT_GAME
+			CMP AL,'e'
+			JE EXIT_GAME
+			JMP MAIN_MENU_WAIT_FOR_KEY
 		
+		START_SINGLEPLAYER:
+			MOV CURRENT_SCENE,01h
+			MOV GAME_ACTIVE,01h
+			RET
+			
+		START_MULTIPLAYER:
+			JMP MAIN_MENU_WAIT_FOR_KEY 	; TODO
 		
+		EXIT_GAME:
+			MOV EXITING_GAME,01h
+			RET
 		
-		RET
 	DRAW_MAIN_MENU ENDP
 	
 	UDPATE_WINNER_TEXT PROC NEAR
@@ -650,6 +684,17 @@ CODE SEGMENT PARA 'CODE'
 		
 		RET
 	CLEAR_SCREEN ENDP
+
+	CONCLUDE_EXIT_GAME PROC NEAR		; Vuelve hacia el modo de texto
+	
+		MOV AH,00h 						; Establecer configuración de modo de video
+		MOV AL,02h 						; Elegir el modo de video
+		INT 10h 						; Ejecutar la configuración
+		
+		MOV AH,4Ch						; Terminar el programa
+		INT 21h
+		
+	CONCLUDE_EXIT_GAME ENDP
 
 CODE ENDS
 END
