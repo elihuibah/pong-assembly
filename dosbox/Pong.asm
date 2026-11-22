@@ -9,9 +9,13 @@ DATA SEGMENT PARA 'DATA'
 	WINDOW_BOUNDS DW 6    				; Variable usada para checar colisiones tempranamente
 	
 	TIME_AUX DB 0 						; Variable usada al checar si el tiempo ha cambiado
+	GAME_ACTIVE DB 1					; Indica si el juego está activo (1 -> Sí, 0 -> No (game over))
+	WINNER_INDEX DB 0					; El índice del jugador ganador (1 -> Jugador 1, 2 -> Jugador dos)
 	
 	TEXT_PLAYER_ONE_POINTS DW '0','$'   ; Texto con el puntaje del jugador izquierdo (jugador 1)
 	TEXT_PLAYER_TWO_POINTS DW '0','$'   ; Texto con el puntaje del jugador derecho (jugador 2)
+	TEXT_GAME_OVER_TITLE DB 'GAME OVER','$' ; Texto del título del menú de Game 
+	TEXT_GAME_OVER_WINNER DB 'Player 0 won','$' ; Texto con el jugador ganador de la partida
 	
 	BALL_ORIGINAL_X DW 0A0h				; Posición en el eje x de la pelota al inicio de una partida
 	BALL_ORIGINAL_Y DW 64h				; Posición en el eje y de la pelota al inicio de una partida
@@ -50,7 +54,10 @@ CODE SEGMENT PARA 'CODE'
 		CALL CLEAR_SCREEN				; Establecer las congiguracionas del modo de video inicial		
 		
 		CHECK_TIME:						; Bucle de chequeo de tiempo
-		
+			
+			CMP GAME_ACTIVE,00h
+			JE SHOW_GAME_OVER
+			
 			MOV AH,2Ch 					; Obtener el tiempo del sistema
 			INT 21h 					; CH = hora, CL = minuto, DH = segundo, DL = 1/100 segundos
 					
@@ -71,7 +78,10 @@ CODE SEGMENT PARA 'CODE'
 			CALL DRAW_UI				; Dibujar la interfaz de usuario del juego
 			
 			JMP CHECK_TIME 				; Después de lo anterior, checar el tiempo de nuevo
-
+			
+			SHOW_GAME_OVER:
+				CALL DRAW_GAME_OVER_MENU
+				JMP CHECK_TIME
 		RET
 	MAIN ENDP
 	
@@ -117,11 +127,24 @@ CODE SEGMENT PARA 'CODE'
 			RET
 			
 		GAME_OVER:						; Alguno de los jugadores logra obtener 5 puntos
-			MOV PLAYER_ONE_POINTS,00h   ; Reiniciar el puntaje del jugador 1
-			MOV PLAYER_TWO_POINTS,00h   ; Reiniciar el puntaje del jugador 2
-			CALL UPDATE_TEXT_PLAYER_ONE_POINTS
-			CALL UPDATE_TEXT_PLAYER_TWO_POINTS
-			RET
+			CMP PLAYER_ONE_POINTS,05h	; Checar cuál jugador posee 5 o más puntos
+			JNL WINNER_IS_PLAYER_ONE	; Si el jugador 1 no tiene menos de 5 puntos, entonces es el ganador
+			JMP WINNER_IS_PLAYER_TWO	; Si no, entonces el jugador 2 es el ganador
+			
+			WINNER_IS_PLAYER_ONE:
+				MOV WINNER_INDEX,01h	; Actualizar el índice de ganador con el índice del jugador 1
+				JMP CONTINUE_GAME_OVER
+			WINNER_IS_PLAYER_TWO:
+				MOV WINNER_INDEX,02h	; Actualizar el índice de ganador con el índice del jugador 2
+				JMP CONTINUE_GAME_OVER
+			
+			CONTINUE_GAME_OVER:
+				MOV PLAYER_ONE_POINTS,00h   ; Reiniciar el puntaje del jugador 1
+				MOV PLAYER_TWO_POINTS,00h   ; Reiniciar el puntaje del jugador 2
+				CALL UPDATE_TEXT_PLAYER_ONE_POINTS
+				CALL UPDATE_TEXT_PLAYER_TWO_POINTS
+				MOV GAME_ACTIVE,00h			; Detener el juego
+				RET
 			
 		; Mover la pelota verticalmente
 		MOVE_BALL_VERTICALLY:
@@ -416,7 +439,7 @@ CODE SEGMENT PARA 'CODE'
 		LEA DX,TEXT_PLAYER_ONE_POINTS   ; Dar a DX un pointer al string de texto TEXT_PLAYER_ONE_POINTS
 		INT 21h							; Imprimir el string
 
-		; Dibujar el texto del puntaje del jugador derecho (jugador 1)
+		; Dibujar el texto del puntaje del jugador derecho (jugador 2)
 		MOV AH,02h						; Establecer la posición del cursor
 		MOV BH,00h						; Establecer el número de página
 		MOV DH,04h						; Establecer fila
@@ -458,6 +481,50 @@ CODE SEGMENT PARA 'CODE'
 		
 		RET
 	UPDATE_TEXT_PLAYER_TWO_POINTS ENDP
+	
+	DRAW_GAME_OVER_MENU PROC NEAR		; Dibujar el menú de Game Over
+		
+		CALL CLEAR_SCREEN				; Limpiar la pantalla antes de mostrar el menú
+		
+		; Mostrar el título del menú de Game Over
+		MOV AH,02h						; Establecer la posición del cursor
+		MOV BH,00h						; Establecer el número de página
+		MOV DH,04h						; Establecer fila
+		MOV DL,04h						; Establecer columna
+		INT 10h
+		
+		MOV AH,09h						; Escribir string a output estándar
+		LEA DX,TEXT_GAME_OVER_TITLE	 	; Dar a DX un pointer al string de texto TEXT_PLAYER_TWO_POINTS
+		INT 21h							; Imprimir el string
+		
+		; Muestra al ganador
+		MOV AH,02h						; Establecer la posición del cursor
+		MOV BH,00h						; Establecer el número de página
+		MOV DH,06h						; Establecer fila
+		MOV DL,04h						; Establecer columna
+		INT 10h
+		
+		CALL UDPATE_WINNER_TEXT
+		
+		MOV AH,09h						; Escribir string a output estándar
+		LEA DX,TEXT_GAME_OVER_WINNER 	; Dar a DX un pointer al string de texto TEXT_PLAYER_TWO_POINTS
+		INT 21h							; Imprimir el string
+		
+		; Espera a que una tecla sea presionada
+		MOV AH,00h
+		INT 16h
+		
+		RET
+	DRAW_GAME_OVER_MENU ENDP
+	
+	UDPATE_WINNER_TEXT PROC NEAR
+		
+		MOV AL,WINNER_INDEX				; Si el índice del ganador es 1, entonces AL,1
+		ADD AL,30h						;AL,31h => AL,'1'
+		MOV [TEXT_GAME_OVER_WINNER+7],AL ; Actualizar el índice en el texto con el caracter
+		
+		RET
+	UDPATE_WINNER_TEXT ENDP
 	
 	CLEAR_SCREEN PROC NEAR				; Limpíar la pantalla al reiniciar el modo de video
 		MOV AH,00h 						; Establecer configuración de modo de video
