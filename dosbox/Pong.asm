@@ -16,6 +16,7 @@ DATA SEGMENT PARA 'DATA'
 	TEXT_PLAYER_TWO_POINTS DW '0','$'   ; Texto con el puntaje del jugador derecho (jugador 2)
 	TEXT_GAME_OVER_TITLE DB 'GAME OVER','$' ; Texto del título del menú de Game 
 	TEXT_GAME_OVER_WINNER DB 'Player 0 won','$' ; Texto con el jugador ganador de la partida
+	TEXT_GAME_OVER_PLAY_AGAIN DB 'Press R to play again','$' ; Texto que indica el mensaje de nueva partida
 	
 	BALL_ORIGINAL_X DW 0A0h				; Posición en el eje x de la pelota al inicio de una partida
 	BALL_ORIGINAL_Y DW 64h				; Posición en el eje y de la pelota al inicio de una partida
@@ -494,7 +495,7 @@ CODE SEGMENT PARA 'CODE'
 		INT 10h
 		
 		MOV AH,09h						; Escribir string a output estándar
-		LEA DX,TEXT_GAME_OVER_TITLE	 	; Dar a DX un pointer al string de texto TEXT_PLAYER_TWO_POINTS
+		LEA DX,TEXT_GAME_OVER_TITLE	 	; Dar a DX un pointer
 		INT 21h							; Imprimir el string
 		
 		; Muestra al ganador
@@ -507,14 +508,35 @@ CODE SEGMENT PARA 'CODE'
 		CALL UDPATE_WINNER_TEXT
 		
 		MOV AH,09h						; Escribir string a output estándar
-		LEA DX,TEXT_GAME_OVER_WINNER 	; Dar a DX un pointer al string de texto TEXT_PLAYER_TWO_POINTS
+		LEA DX,TEXT_GAME_OVER_WINNER 	; Dar a DX un pointer
+		INT 21h							; Imprimir el string
+		
+		; Muestra el texto acerca de jugar de nuevo
+		MOV AH,02h						; Establecer la posición del cursor
+		MOV BH,00h						; Establecer el número de página
+		MOV DH,08h						; Establecer fila
+		MOV DL,04h						; Establecer columna
+		INT 10h
+				
+		MOV AH,09h						; Escribir string a output estándar
+		LEA DX,TEXT_GAME_OVER_PLAY_AGAIN	; Dar a DX un pointer
 		INT 21h							; Imprimir el string
 		
 		; Espera a que una tecla sea presionada
 		MOV AH,00h
 		INT 16h
 		
+		; Si la tecla presionada es 'R' o 'r', reiniciar el juego (nueva partida)
+		CMP AL,'R'
+		JE RESTART_GAME
+		CMP AL,'r'
+		JE RESTART_GAME
 		RET
+		
+		RESTART_GAME:
+			MOV GAME_ACTIVE,01h
+			RET
+			
 	DRAW_GAME_OVER_MENU ENDP
 	
 	UDPATE_WINNER_TEXT PROC NEAR
