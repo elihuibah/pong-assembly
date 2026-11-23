@@ -377,6 +377,25 @@ void DrawString() {
     }
 }
 
+// Was DRAW_UI
+void DrawUI() {
+    __asm {
+        ; Texto del puntaje del jugador 1
+        mov  CURSOR_ROW, 04h; MOV DH, 04h(fila)
+        mov  CURSOR_COL, 06h; MOV DL, 06h(columna)
+        lea  eax, TEXT_PLAYER_ONE_POINTS; LEA DX, TEXT_PLAYER_ONE_POINTS
+        mov  STRING_PTR, eax
+        call DrawString; MOV AH, 09h / INT 21h
+
+        ; Texto del puntaje del jugador 2
+        mov  CURSOR_ROW, 04h
+        mov  CURSOR_COL, 1Fh
+        lea  eax, TEXT_PLAYER_TWO_POINTS
+        mov  STRING_PTR, eax
+        call DrawString
+    }
+}
+
 // Was DRAW_BALL
 void DrawBall() {
     __asm {
@@ -544,7 +563,12 @@ int main()
         DrawBall();
         MovePaddles();
         DrawPaddles();
+        DrawUI();
         Present(hwnd);
+        //temporal: until DRAW_GAME_OVER_MENU is ported, restart right away
+        if (GAME_ACTIVE == 0) {
+            GAME_ACTIVE = 1;
+        }
         Sleep(55);
 
     }
