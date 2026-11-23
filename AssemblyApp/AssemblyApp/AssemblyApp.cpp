@@ -61,7 +61,19 @@ char TEXT_PLAYER_TWO_POINTS[] = "0";
 unsigned char CURSOR_ROW = 0;
 unsigned char CURSOR_COL = 0;
 char* STRING_PTR = nullptr;
-
+// 8x8 font for digits '0'..'9'. 1 byte per row, bit 7 = leftmost pixel.
+unsigned char FONT_DIGITS[10][8] = {
+    {0x3C,0x66,0x6E,0x76,0x66,0x66,0x3C,0x00}, // 0
+    {0x18,0x38,0x18,0x18,0x18,0x18,0x7E,0x00}, // 1
+    {0x3C,0x66,0x06,0x0C,0x30,0x60,0x7E,0x00}, // 2
+    {0x3C,0x66,0x06,0x1C,0x06,0x66,0x3C,0x00}, // 3
+    {0x0C,0x1C,0x3C,0x6C,0x7E,0x0C,0x0C,0x00}, // 4
+    {0x7E,0x60,0x7C,0x06,0x06,0x66,0x3C,0x00}, // 5
+    {0x3C,0x66,0x60,0x7C,0x66,0x66,0x3C,0x00}, // 6
+    {0x7E,0x66,0x0C,0x18,0x18,0x18,0x18,0x00}, // 7
+    {0x3C,0x66,0x66,0x3C,0x66,0x66,0x3C,0x00}, // 8
+    {0x3C,0x66,0x66,0x3E,0x06,0x66,0x3C,0x00}  // 9
+};
 
 void ResetBallPosition() {
     __asm {
@@ -103,23 +115,51 @@ void MoveBall() {
         ; Limite izquierdo(BALL_X < WINDOW_BOUNDS)
         mov  ax, WINDOW_BOUNDS
         cmp  BALL_X, ax
-        jl   RESET_POSITION
+        jl   GIVE_POINT_TO_PLAYER_TWO
 
         ; Limite derecho(BALL_X > WINDOW_WIDTH - BALL_SIZE - WINDOW_BOUNDS)
         mov  ax, WINDOW_WIDTH
         sub  ax, BALL_SIZE
         sub  ax, WINDOW_BOUNDS
         cmp  BALL_X, ax
-        jg   RESET_POSITION
+        jg   GIVE_POINT_TO_PLAYER_ONE
         jmp  MOVE_BALL_VERTICALLY
 
-        RESET_POSITION :
-        ; Was CALL RESET_BALL_POSITION + RET->code placed here directly
-            mov  ax, BALL_ORIGINAL_X
-            mov  BALL_X, ax
-            mov  ax, BALL_ORIGINAL_Y
-            mov  BALL_Y, ax
+        GIVE_POINT_TO_PLAYER_ONE :
+        inc  PLAYER_ONE_POINTS; puntaje jugador 1 + 1
+            call ResetBallPosition; CALL RESET_BALL_POSITION
+            call UpdateTextPlayerOnePoints; CALL UPDATE_TEXT_PLAYER_ONE_POINTS
+            cmp  PLAYER_ONE_POINTS, 05h; ¿llego a 5 puntos ?
+            jge  GAME_OVER
             jmp  EXIT_MOVE_BALL; instead of RET
+
+            GIVE_POINT_TO_PLAYER_TWO :
+        inc  PLAYER_TWO_POINTS
+            call ResetBallPosition
+            call UpdateTextPlayerTwoPoints
+            cmp  PLAYER_TWO_POINTS, 05h
+            jge  GAME_OVER
+            jmp  EXIT_MOVE_BALL; instead of RET
+
+            GAME_OVER : ; algun jugador tiene 5 puntos
+            cmp  PLAYER_ONE_POINTS, 05h
+            jnl  WINNER_IS_PLAYER_ONE
+            jmp  WINNER_IS_PLAYER_TWO
+
+            WINNER_IS_PLAYER_ONE :
+        mov  WINNER_INDEX, 01h
+            jmp  CONTINUE_GAME_OVER
+
+            WINNER_IS_PLAYER_TWO :
+        mov  WINNER_INDEX, 02h
+
+            CONTINUE_GAME_OVER :
+        mov  PLAYER_ONE_POINTS, 00h; reiniciar puntajes
+            mov  PLAYER_TWO_POINTS, 00h
+            call UpdateTextPlayerOnePoints
+            call UpdateTextPlayerTwoPoints
+            mov  GAME_ACTIVE, 00h; detener el juego
+            jmp  EXIT_MOVE_BALL
 
             MOVE_BALL_VERTICALLY :
         mov  ax, BALL_VELOCITY_Y
