@@ -49,6 +49,22 @@ short KEY_L = 0;
 // 1 = key is held down
 bool running = true; // if running is true, the game loop continues; if false, the game loop ends
 
+// Player points
+unsigned char PLAYER_ONE_POINTS = 0; // LEFT PLAYER SCORE
+unsigned char PLAYER_TWO_POINTS = 0; // RIGHT PLAYER SCORE
+unsigned char WINNER_INDEX = 0; // 1 or 2 when someone wins
+unsigned char GAME_ACTIVE = 1; //1 = playing 0 = game over
+
+char TEXT_PLAYER_ONE_POINTS[] = "0";
+char TEXT_PLAYER_TWO_POINTS[] = "0";
+
+unsigned char CURSOR_ROW = 0;
+unsigned char CURSOR_COL = 0;
+char* STRING_PTR = nullptr;
+
+
+
+
 // Was MOVE_BALL
 void MoveBall() {
     __asm {
@@ -158,6 +174,11 @@ void ReadKeys() {
     KEY_O = (GetAsyncKeyState('O') & 0x8000) ? 1 : 0;
     KEY_L = (GetAsyncKeyState('L') & 0x8000) ? 1 : 0;
     if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) running = false;   // Esc = quit
+}
+
+// Method to update 
+void updatePoints() {
+
 }
 
 // Was MOVE_PADDLES
