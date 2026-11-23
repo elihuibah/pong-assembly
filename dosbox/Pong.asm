@@ -20,10 +20,12 @@ DATA SEGMENT PARA 'DATA'
 	TEXT_GAME_OVER_WINNER DB 'Player 0 won!','$' ; Texto con el jugador ganador de la partida
 	TEXT_GAME_OVER_PLAY_AGAIN DB 'Press R to play again','$' ; Texto que indica el mensaje de nueva partida
 	TEXT_GAME_OVER_MAIN_MENU DB 'Press E to exit to main menu','$' ; Texto que indica el mensaje de menú
-	TEXT_MAIN_MENU_TITLE DB 'PONG ASSEMBLY - MAIN MENU','$' ; Texto que indica el título del menú principal
+	TEXT_MAIN_MENU_TITLE DB 'PONG ASSEMBLY | MAIN MENU','$' ; Texto que indica el título del menú principal
 	TEXT_MAIN_MENU_SINGLEPLAYER DB 'SINGLEPLAYER - S KEY','$' ; Texto que indica el modo de un sólo jugador
 	TEXT_MAIN_MENU_MULTIPLAYER DB 'MULTIPLAYER - M KEY','$' ; Texto que indica el modo multijugador
 	TEXT_MAIN_MENU_EXIT DB 'EXIT GAME - E KEY','$' ; Texto que indica cómo salir del juego
+	TEXT_CREDITS_1 DB 'Proyect by Mariana Flores,','$' ; Créditos (primera parte)
+	TEXT_CREDITS_2 DB 'Elihu Ibarra & Leonardo Piedras','$' ; Créditos (segunda parte)
 	
 	BALL_ORIGINAL_X DW 0A0h				; Posición en el eje x de la pelota al inicio de una partida
 	BALL_ORIGINAL_Y DW 64h				; Posición en el eje y de la pelota al inicio de una partida
@@ -40,6 +42,7 @@ DATA SEGMENT PARA 'DATA'
 	PADDLE_RIGHT_X DW 130h				; Posición actual en el eje x de la paleta derecha
 	PADDLE_RIGHT_Y DW 0Ah				; Posición actual en el eje y de la paleta derecha
 	PLAYER_TWO_POINTS DB 0			; Puntaje actual del jugador de la paleta derecha (jugador 2) 
+	AI_CONTROLLED DB 0					; Está la paleta derecho siendo controlado por la IA?
 	
 	PADDLE_WIDTH DW 05h					; Ancho predeterminado de la paleta
 	PADDLE_HEIGHT DW 1Fh				; Altura predeterminada de la paleta
@@ -310,49 +313,73 @@ CODE SEGMENT PARA 'CODE'
 		; Movimiento de la paleta derecha
 		CHECK_RIGHT_PADDLE_MOVEMENT:
 		
-		; Si es la tecla 'o' o 'O', mover hacia arriba
-		CMP AL,6Fh 						; 'o'
-		JE MOVE_RIGHT_PADDLE_UP
-		CMP AL,4Fh 						; 'O'
-		JE MOVE_RIGHT_PADDLE_UP
-		
-		; Si es la tecla 'l' o 'L', mover hacia abajo
-		CMP AL,6Ch 						; 'l'
-		JE MOVE_RIGHT_PADDLE_DOWN
-		CMP AL,4Ch 						; 'L'
-		JE MOVE_RIGHT_PADDLE_DOWN
-		JMP EXIT_PADDLE_MOVEMENT 		; Salir del procedure
-		
-		MOVE_RIGHT_PADDLE_UP:
-			MOV AX,PADDLE_VELOCITY
-			SUB PADDLE_RIGHT_Y,AX
+			CMP AI_CONTROLLED,01h
+			JE CONTROL_BY_AI
 			
-			MOV AX,WINDOW_BOUNDS
-			CMP PADDLE_RIGHT_Y,AX
-			JL FIX_PADDLE_RIGHT_TOP_POSITION
-			JMP EXIT_PADDLE_MOVEMENT
-			
-			FIX_PADDLE_RIGHT_TOP_POSITION:
+			; La paleta es controlada por el usuario presionando una tecla
+			CHECK_FOR_KEYS:	
+				; Si es la tecla 'o' o 'O', mover hacia arriba
+				CMP AL,6Fh 						; 'o'
+				JE MOVE_RIGHT_PADDLE_UP
+				CMP AL,4Fh 						; 'O'
+				JE MOVE_RIGHT_PADDLE_UP
+				
+				; Si es la tecla 'l' o 'L', mover hacia abajo
+				CMP AL,6Ch 						; 'l'
+				JE MOVE_RIGHT_PADDLE_DOWN
+				CMP AL,4Ch 						; 'L'
+				JE MOVE_RIGHT_PADDLE_DOWN
+				JMP EXIT_PADDLE_MOVEMENT 		; Salir del procedure
+		
+			; La paleta es controlada por la IA
+			CONTROL_BY_AI:
+				; Checar si la pelota está por encima de la paleta (BALL_X + BALL_SIZE < PADDLE_RIGHT_Y)
+				; Si lo está, entonces mover hacia arriba
+				MOV AX,BALL_Y
+				ADD AX,BALL_SIZE
+				CMP AX,PADDLE_RIGHT_Y
+				JL MOVE_RIGHT_PADDLE_UP
+				
+				; Checar si la pelota está por debajo de la paleta (BALL_Y > PADDLE_RIGHT_Y + PADDLE_HEIGHT)
+				; Si lo está, entonces mover hacia abajo
+				MOV AX,PADDLE_RIGHT_Y
+				ADD AX,PADDLE_HEIGHT
+				CMP AX,BALL_Y
+				JL MOVE_RIGHT_PADDLE_DOWN
+								
+				; Si ninguna de las anteriores condiciones es verdad, entonces no mover la paleta (salir del movimiento de la paleta)
+				JMP EXIT_PADDLE_MOVEMENT
+		
+			MOVE_RIGHT_PADDLE_UP:
+				MOV AX,PADDLE_VELOCITY
+				SUB PADDLE_RIGHT_Y,AX
+				
 				MOV AX,WINDOW_BOUNDS
-				MOV PADDLE_RIGHT_Y,AX
+				CMP PADDLE_RIGHT_Y,AX
+				JL FIX_PADDLE_RIGHT_TOP_POSITION
 				JMP EXIT_PADDLE_MOVEMENT
-		
-		MOVE_RIGHT_PADDLE_DOWN:
-			MOV AX,PADDLE_VELOCITY
-			ADD PADDLE_RIGHT_Y,AX
-			MOV AX,WINDOW_HEIGHT
-			SUB AX,WINDOW_BOUNDS
-			SUB AX,PADDLE_HEIGHT
-			CMP PADDLE_RIGHT_Y,AX
-			JG FIX_PADDLE_RIGHT_BOTTOM_POSITION
-			JMP EXIT_PADDLE_MOVEMENT
+				
+				FIX_PADDLE_RIGHT_TOP_POSITION:
+					MOV AX,WINDOW_BOUNDS
+					MOV PADDLE_RIGHT_Y,AX
+					JMP EXIT_PADDLE_MOVEMENT
 			
-			FIX_PADDLE_RIGHT_BOTTOM_POSITION:
-				MOV PADDLE_RIGHT_Y,AX
+			MOVE_RIGHT_PADDLE_DOWN:
+				MOV AX,PADDLE_VELOCITY
+				ADD PADDLE_RIGHT_Y,AX
+				MOV AX,WINDOW_HEIGHT
+				SUB AX,WINDOW_BOUNDS
+				SUB AX,PADDLE_HEIGHT
+				CMP PADDLE_RIGHT_Y,AX
+				JG FIX_PADDLE_RIGHT_BOTTOM_POSITION
 				JMP EXIT_PADDLE_MOVEMENT
-		
-		EXIT_PADDLE_MOVEMENT:
-			RET
+				
+				FIX_PADDLE_RIGHT_BOTTOM_POSITION:
+					MOV PADDLE_RIGHT_Y,AX
+					JMP EXIT_PADDLE_MOVEMENT
+			
+			EXIT_PADDLE_MOVEMENT:
+				RET
 				
 	MOVE_PADDLES ENDP
 	
@@ -627,6 +654,28 @@ CODE SEGMENT PARA 'CODE'
 		LEA DX,TEXT_MAIN_MENU_EXIT 	; Dar a DX un pointer
 		INT 21h							; Imprimir el string
 		
+		; Mostrar el texto de créditos del proyecto
+		MOV AH,02h						; Establecer la posición del cursor
+		MOV BH,00h						; Establecer el número de página
+		MOV DH,0Dh						; Establecer fila
+		MOV DL,04h						; Establecer columna
+		INT 10h
+		
+		MOV AH,09h						; Escribir string a output estándar
+		LEA DX,TEXT_CREDITS_1 			; Dar a DX un pointer
+		INT 21h							; Imprimir el string
+		
+		; Mostrar el texto de créditos del proyecto
+		MOV AH,02h						; Establecer la posición del cursor
+		MOV BH,00h						; Establecer el número de página
+		MOV DH,0Fh						; Establecer fila
+		MOV DL,04h						; Establecer columna
+		INT 10h
+		
+		MOV AH,09h						; Escribir string a output estándar
+		LEA DX,TEXT_CREDITS_2 			; Dar a DX un pointer
+		INT 21h							; Imprimir el string
+		
 		MAIN_MENU_WAIT_FOR_KEY:	
 		; Espera a que una tecla sea presionada
 			MOV AH,00h
@@ -652,10 +701,14 @@ CODE SEGMENT PARA 'CODE'
 		START_SINGLEPLAYER:
 			MOV CURRENT_SCENE,01h
 			MOV GAME_ACTIVE,01h
+			MOV AI_CONTROLLED,00h
 			RET
 			
 		START_MULTIPLAYER:
-			JMP MAIN_MENU_WAIT_FOR_KEY 	; TODO
+			MOV CURRENT_SCENE,01h
+			MOV GAME_ACTIVE,01h
+			MOV AI_CONTROLLED,01h
+			RET
 		
 		EXIT_GAME:
 			MOV EXITING_GAME,01h
