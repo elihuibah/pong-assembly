@@ -63,9 +63,37 @@ unsigned char CURSOR_COL = 0;
 char* STRING_PTR = nullptr;
 
 
+void ResetBallPosition() {
+    __asm {
+        mov ax, BALL_ORIGINAL_X
+        mov BALL_X, ax
+        mov ax, BALL_ORIGINAL_Y
+        mov BALL_Y, ax
+    }
+}
+
+void UpdateTextPlayerOnePoints{
+    __asm {
+        xor  ax, ax; AX = 0
+        mov  al, PLAYER_ONE_POINTS; ej.AL = 2
+        add  al, 30h; numero->ASCII: 2 + 30h = 32h = '2'
+        mov  byte ptr[TEXT_PLAYER_ONE_POINTS], al; primer caracter del texto = '2'
+    }
+
+void UpdateTextPlayerOnePoints{
+    __asm {
+        xor ax, ax; AX = 0
+        mov  al, PLAYER_TWO_POINTS
+        add  al, 30h
+        mov  byte ptr[TEXT_PLAYER_TWO_POINTS], al
+
+    }
+
+}
 
 
-// Was MOVE_BALL
+
+
 void MoveBall() {
     __asm {
         ; Mover la pelota horizontalmente
