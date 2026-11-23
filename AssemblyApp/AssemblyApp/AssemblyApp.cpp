@@ -49,7 +49,64 @@ short KEY_L = 0;
 // 1 = key is held down
 bool running = true; // if running is true, the game loop continues; if false, the game loop ends
 
-// Was MOVE_BALL
+// Player points
+unsigned char PLAYER_ONE_POINTS = 0; // LEFT PLAYER SCORE
+unsigned char PLAYER_TWO_POINTS = 0; // RIGHT PLAYER SCORE
+unsigned char WINNER_INDEX = 0; // 1 or 2 when someone wins
+unsigned char GAME_ACTIVE = 1; //1 = playing 0 = game over
+
+char TEXT_PLAYER_ONE_POINTS[] = "0";
+char TEXT_PLAYER_TWO_POINTS[] = "0";
+
+unsigned char CURSOR_ROW = 0;
+unsigned char CURSOR_COL = 0;
+char* STRING_PTR = nullptr;
+// 8x8 font for digits '0'..'9'. 1 byte per row, bit 7 = leftmost pixel.
+unsigned char FONT_DIGITS[10][8] = {
+    {0x3C,0x66,0x6E,0x76,0x66,0x66,0x3C,0x00}, // 0
+    {0x18,0x38,0x18,0x18,0x18,0x18,0x7E,0x00}, // 1
+    {0x3C,0x66,0x06,0x0C,0x30,0x60,0x7E,0x00}, // 2
+    {0x3C,0x66,0x06,0x1C,0x06,0x66,0x3C,0x00}, // 3
+    {0x0C,0x1C,0x3C,0x6C,0x7E,0x0C,0x0C,0x00}, // 4
+    {0x7E,0x60,0x7C,0x06,0x06,0x66,0x3C,0x00}, // 5
+    {0x3C,0x66,0x60,0x7C,0x66,0x66,0x3C,0x00}, // 6
+    {0x7E,0x66,0x0C,0x18,0x18,0x18,0x18,0x00}, // 7
+    {0x3C,0x66,0x66,0x3C,0x66,0x66,0x3C,0x00}, // 8
+    {0x3C,0x66,0x66,0x3E,0x06,0x66,0x3C,0x00}  // 9
+};
+
+void ResetBallPosition() {
+    __asm {
+        mov ax, BALL_ORIGINAL_X
+        mov BALL_X, ax
+        mov ax, BALL_ORIGINAL_Y
+        mov BALL_Y, ax
+    }
+}
+
+void UpdateTextPlayerOnePoints() {
+    __asm {
+        xor ax, ax; AX = 0
+        mov  al, PLAYER_ONE_POINTS; ej.AL = 2
+        add  al, 30h; numero->ASCII: 2 + 30h = 32h = '2'
+        mov  byte ptr[TEXT_PLAYER_ONE_POINTS], al; primer caracter del texto = '2'
+    }
+}
+
+void UpdateTextPlayerTwoPoints(){
+    __asm {
+        xor ax, ax; AX = 0
+        mov  al, PLAYER_TWO_POINTS
+        add  al, 30h
+        mov  byte ptr[TEXT_PLAYER_TWO_POINTS], al
+
+    }
+
+}
+
+
+
+
 void MoveBall() {
     __asm {
         ; Mover la pelota horizontalmente
@@ -59,23 +116,51 @@ void MoveBall() {
         ; Limite izquierdo(BALL_X < WINDOW_BOUNDS)
         mov  ax, WINDOW_BOUNDS
         cmp  BALL_X, ax
-        jl   RESET_POSITION
+        jl   GIVE_POINT_TO_PLAYER_TWO
 
         ; Limite derecho(BALL_X > WINDOW_WIDTH - BALL_SIZE - WINDOW_BOUNDS)
         mov  ax, WINDOW_WIDTH
         sub  ax, BALL_SIZE
         sub  ax, WINDOW_BOUNDS
         cmp  BALL_X, ax
-        jg   RESET_POSITION
+        jg   GIVE_POINT_TO_PLAYER_ONE
         jmp  MOVE_BALL_VERTICALLY
-
-        RESET_POSITION :
-        ; Was CALL RESET_BALL_POSITION + RET->code placed here directly
-            mov  ax, BALL_ORIGINAL_X
-            mov  BALL_X, ax
-            mov  ax, BALL_ORIGINAL_Y
-            mov  BALL_Y, ax
+         
+        GIVE_POINT_TO_PLAYER_ONE :
+        inc  PLAYER_ONE_POINTS; puntaje jugador 1 + 1
+            call ResetBallPosition; CALL RESET_BALL_POSITION
+            call UpdateTextPlayerOnePoints; CALL UPDATE_TEXT_PLAYER_ONE_POINTS
+            cmp  PLAYER_ONE_POINTS, 05h; ¿llego a 5 puntos ?
+            jge  GAME_OVER
             jmp  EXIT_MOVE_BALL; instead of RET
+
+            GIVE_POINT_TO_PLAYER_TWO :
+        inc  PLAYER_TWO_POINTS
+            call ResetBallPosition
+            call UpdateTextPlayerTwoPoints
+            cmp  PLAYER_TWO_POINTS, 05h
+            jge  GAME_OVER
+            jmp  EXIT_MOVE_BALL; instead of RET
+
+            GAME_OVER : ; algun jugador tiene 5 puntos
+            cmp  PLAYER_ONE_POINTS, 05h
+            jnl  WINNER_IS_PLAYER_ONE
+            jmp  WINNER_IS_PLAYER_TWO
+
+            WINNER_IS_PLAYER_ONE :
+        mov  WINNER_INDEX, 01h
+            jmp  CONTINUE_GAME_OVER
+
+            WINNER_IS_PLAYER_TWO :
+        mov  WINNER_INDEX, 02h
+
+            CONTINUE_GAME_OVER :
+        mov  PLAYER_ONE_POINTS, 00h; reiniciar puntajes
+            mov  PLAYER_TWO_POINTS, 00h
+            call UpdateTextPlayerOnePoints
+            call UpdateTextPlayerTwoPoints
+            mov  GAME_ACTIVE, 00h; detener el juego
+            jmp  EXIT_MOVE_BALL
 
             MOVE_BALL_VERTICALLY :
         mov  ax, BALL_VELOCITY_Y
@@ -160,6 +245,7 @@ void ReadKeys() {
     if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) running = false;   // Esc = quit
 }
 
+
 // Was MOVE_PADDLES
 void MovePaddles() {
     __asm {
@@ -229,6 +315,87 @@ void MovePaddles() {
     }
 }
 
+// Replaces INT 10h AH=02h + INT 21h AH=09h.
+// Draws the string at STRING_PTR, starting at text cell (CURSOR_ROW, CURSOR_COL).
+// Each cell is 8x8 pixels, like the 40x25 text grid of video mode 0Dh.
+void DrawString() {
+    __asm {
+        mov   esi, STRING_PTR; ESI->first character(like DX in DOS)
+
+        NEXT_CHAR:
+        movzx eax, byte ptr[esi]; EAX = current character
+            cmp   al, 0; '\0' = end of string(DOS used '$')
+            je    END_STRING
+
+            ; --- only digits for now: skip anything outside '0'..'9' -- -
+            cmp   al, '0'
+            jb    ADVANCE_CURSOR; below '0'  -> not a digit
+            cmp   al, '9'
+            ja    ADVANCE_CURSOR; above '9'  -> not a digit
+            sub   al, 30h; ASCII->number('2' -> 2)
+
+            ; --- EBX->glyph = FONT_DIGITS + digit * 8 -- -
+            lea   ebx, FONT_DIGITS
+            shl   eax, 3; EAX = digit * 8
+            add   ebx, eax
+
+            ; --- EDI->top - left pixel of the cell-- -
+            movzx edi, CURSOR_ROW
+            shl   edi, 3; y = row * 8
+            imul  edi, edi, FB_W; EDI = y * 320
+            movzx eax, CURSOR_COL
+            shl   eax, 3; x = col * 8
+            add   edi, eax; EDI = y * 320 + x
+            lea   eax, framebuffer
+            add   edi, eax; EDI = address of that pixel
+
+            mov   dh, 8; 8 rows per character
+            ROW_LOOP :
+        mov   dl, byte ptr[ebx]; DL = bit pattern of this row
+            mov   ecx, 0; column 0..7
+            COL_LOOP:
+        test  dl, 80h; is the leftmost bit 1 ?
+            jz    SKIP_PIXEL
+            mov   byte ptr[edi + ecx], 0Fh; white pixel
+            SKIP_PIXEL :
+        shl   dl, 1; move the next bit into bit 7
+            inc   ecx
+            cmp   ecx, 8
+            jl    COL_LOOP
+
+            inc   ebx; next row of the glyph
+            add   edi, FB_W; next pixel row on screen
+            dec   dh
+            jnz   ROW_LOOP
+
+            ADVANCE_CURSOR :
+        inc   CURSOR_COL; the DOS cursor also moves right
+            inc   esi; next character
+            jmp   NEXT_CHAR
+
+            END_STRING :
+        nop
+    }
+}
+
+// Was DRAW_UI
+void DrawUI() {
+    __asm {
+        ; Texto del puntaje del jugador 1
+        mov  CURSOR_ROW, 04h; MOV DH, 04h(fila)
+        mov  CURSOR_COL, 06h; MOV DL, 06h(columna)
+        lea  eax, TEXT_PLAYER_ONE_POINTS; LEA DX, TEXT_PLAYER_ONE_POINTS
+        mov  STRING_PTR, eax
+        call DrawString; MOV AH, 09h / INT 21h
+
+        ; Texto del puntaje del jugador 2
+        mov  CURSOR_ROW, 04h
+        mov  CURSOR_COL, 1Fh
+        lea  eax, TEXT_PLAYER_TWO_POINTS
+        mov  STRING_PTR, eax
+        call DrawString
+    }
+}
 
 // Was DRAW_BALL
 void DrawBall() {
@@ -397,7 +564,12 @@ int main()
         DrawBall();
         MovePaddles();
         DrawPaddles();
+        DrawUI();
         Present(hwnd);
+        //temporal: until DRAW_GAME_OVER_MENU is ported, restart right away
+        if (GAME_ACTIVE == 0) {
+            GAME_ACTIVE = 1;
+        }
         Sleep(55);
 
     }
