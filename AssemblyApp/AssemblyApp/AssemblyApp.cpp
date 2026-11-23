@@ -124,7 +124,7 @@ void MoveBall() {
         cmp  BALL_X, ax
         jg   GIVE_POINT_TO_PLAYER_ONE
         jmp  MOVE_BALL_VERTICALLY
-
+         
         GIVE_POINT_TO_PLAYER_ONE :
         inc  PLAYER_ONE_POINTS; puntaje jugador 1 + 1
             call ResetBallPosition; CALL RESET_BALL_POSITION
