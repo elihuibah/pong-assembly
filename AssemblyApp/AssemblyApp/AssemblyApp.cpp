@@ -84,15 +84,16 @@ void ResetBallPosition() {
     }
 }
 
-void UpdateTextPlayerOnePoints{
+void UpdateTextPlayerOnePoints() {
     __asm {
-        xor  ax, ax; AX = 0
+        xor ax, ax; AX = 0
         mov  al, PLAYER_ONE_POINTS; ej.AL = 2
         add  al, 30h; numero->ASCII: 2 + 30h = 32h = '2'
         mov  byte ptr[TEXT_PLAYER_ONE_POINTS], al; primer caracter del texto = '2'
     }
+}
 
-void UpdateTextPlayerOnePoints{
+void UpdateTextPlayerTwoPoints(){
     __asm {
         xor ax, ax; AX = 0
         mov  al, PLAYER_TWO_POINTS
