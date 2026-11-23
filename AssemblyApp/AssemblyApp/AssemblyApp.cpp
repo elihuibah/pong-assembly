@@ -244,10 +244,6 @@ void ReadKeys() {
     if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) running = false;   // Esc = quit
 }
 
-// Method to update 
-void updatePoints() {
-
-}
 
 // Was MOVE_PADDLES
 void MovePaddles() {
@@ -318,6 +314,68 @@ void MovePaddles() {
     }
 }
 
+// Replaces INT 10h AH=02h + INT 21h AH=09h.
+// Draws the string at STRING_PTR, starting at text cell (CURSOR_ROW, CURSOR_COL).
+// Each cell is 8x8 pixels, like the 40x25 text grid of video mode 0Dh.
+void DrawString() {
+    __asm {
+        mov   esi, STRING_PTR; ESI->first character(like DX in DOS)
+
+        NEXT_CHAR:
+        movzx eax, byte ptr[esi]; EAX = current character
+            cmp   al, 0; '\0' = end of string(DOS used '$')
+            je    END_STRING
+
+            ; --- only digits for now: skip anything outside '0'..'9' -- -
+            cmp   al, '0'
+            jb    ADVANCE_CURSOR; below '0'  -> not a digit
+            cmp   al, '9'
+            ja    ADVANCE_CURSOR; above '9'  -> not a digit
+            sub   al, 30h; ASCII->number('2' -> 2)
+
+            ; --- EBX->glyph = FONT_DIGITS + digit * 8 -- -
+            lea   ebx, FONT_DIGITS
+            shl   eax, 3; EAX = digit * 8
+            add   ebx, eax
+
+            ; --- EDI->top - left pixel of the cell-- -
+            movzx edi, CURSOR_ROW
+            shl   edi, 3; y = row * 8
+            imul  edi, edi, FB_W; EDI = y * 320
+            movzx eax, CURSOR_COL
+            shl   eax, 3; x = col * 8
+            add   edi, eax; EDI = y * 320 + x
+            lea   eax, framebuffer
+            add   edi, eax; EDI = address of that pixel
+
+            mov   dh, 8; 8 rows per character
+            ROW_LOOP :
+        mov   dl, byte ptr[ebx]; DL = bit pattern of this row
+            mov   ecx, 0; column 0..7
+            COL_LOOP:
+        test  dl, 80h; is the leftmost bit 1 ?
+            jz    SKIP_PIXEL
+            mov   byte ptr[edi + ecx], 0Fh; white pixel
+            SKIP_PIXEL :
+        shl   dl, 1; move the next bit into bit 7
+            inc   ecx
+            cmp   ecx, 8
+            jl    COL_LOOP
+
+            inc   ebx; next row of the glyph
+            add   edi, FB_W; next pixel row on screen
+            dec   dh
+            jnz   ROW_LOOP
+
+            ADVANCE_CURSOR :
+        inc   CURSOR_COL; the DOS cursor also moves right
+            inc   esi; next character
+            jmp   NEXT_CHAR
+
+            END_STRING :
+        nop
+    }
+}
 
 // Was DRAW_BALL
 void DrawBall() {
