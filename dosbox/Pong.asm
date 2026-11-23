@@ -14,8 +14,8 @@ DATA SEGMENT PARA 'DATA'
 	CURRENT_SCENE DB 0					; El índice de la escena o vista actual (0 -> menú principal, 1 -> juego)
 	EXITING_GAME DB 0
 	
-	TEXT_PLAYER_ONE_POINTS DW '0','$'   ; Texto con el puntaje del jugador izquierdo (jugador 1)
-	TEXT_PLAYER_TWO_POINTS DW '0','$'   ; Texto con el puntaje del jugador derecho (jugador 2)
+	TEXT_PLAYER_ONE_POINTS DB '0','$'   ; Texto con el puntaje del jugador izquierdo (jugador 1)
+	TEXT_PLAYER_TWO_POINTS DB '0','$'   ; Texto con el puntaje del jugador derecho (jugador 2)
 	TEXT_GAME_OVER_TITLE DB 'GAME OVER','$' ; Texto del título del menú de Game 
 	TEXT_GAME_OVER_WINNER DB 'Player 0 won!','$' ; Texto con el jugador ganador de la partida
 	TEXT_GAME_OVER_PLAY_AGAIN DB 'Press R to play again','$' ; Texto que indica el mensaje de nueva partida
@@ -34,6 +34,7 @@ DATA SEGMENT PARA 'DATA'
 	BALL_SIZE DW 04h 					; Tamaño de la pelota (cuántos pixeles tiene la pelota en ancho y largo)
 	BALL_VELOCITY_X DW 05h 				; Velocidad en el eje x de la pelota
 	BALL_VELOCITY_Y DW 02h 				; Velocidad en el eje y de la pelota
+	BALL_SERVE_DELAY DB 12h				; Cuadros de espera antes de que la pelota se mueva (2 segundos aproximadamente)
 	
 	PADDLE_LEFT_X DW 0Ah				; Posición actual en el eje x de la paleta izquierda
 	PADDLE_LEFT_Y DW 0Ah				; Posición actual en el eje y de la paleta izquierda
@@ -41,8 +42,10 @@ DATA SEGMENT PARA 'DATA'
 	
 	PADDLE_RIGHT_X DW 130h				; Posición actual en el eje x de la paleta derecha
 	PADDLE_RIGHT_Y DW 0Ah				; Posición actual en el eje y de la paleta derecha
-	PLAYER_TWO_POINTS DB 0			; Puntaje actual del jugador de la paleta derecha (jugador 2) 
+	PLAYER_TWO_POINTS DB 0				; Puntaje actual del jugador de la paleta derecha (jugador 2) 
 	AI_CONTROLLED DB 0					; Está la paleta derecho siendo controlado por la IA?
+	AI_DEADZONE DW 03h					; Margen (en px) en el que la IA no mueve la paleta
+	AI_PADDLE_VELOCITY DW 02h			; Velocidad de la paleta controlada por la IA
 	
 	PADDLE_WIDTH DW 05h					; Ancho predeterminado de la paleta
 	PADDLE_HEIGHT DW 1Fh				; Altura predeterminada de la paleta
@@ -111,9 +114,15 @@ CODE SEGMENT PARA 'CODE'
 	
 	MOVE_BALL PROC NEAR					; Procesar el movimiento de la pelota
 		
-		; Mover la pelota horizontalmente
-		MOV AX,BALL_VELOCITY_X
-		ADD BALL_X,AX		
+		CMP BALL_SERVE_DELAY,00h
+		JE START_BALL_MOVEMENT
+		DEC BALL_SERVE_DELAY
+		RET
+		
+		START_BALL_MOVEMENT:
+			; Mover la pelota horizontalmente
+			MOV AX,BALL_VELOCITY_X
+			ADD BALL_X,AX		
 		
 		; Checar si la pelota ha pasado el límite izquierdo (BALL_X < 0 + WINDOW_BOUNDS)
 		; Si colisiona, restablecer la posición
@@ -333,25 +342,42 @@ CODE SEGMENT PARA 'CODE'
 		
 			; La paleta es controlada por la IA
 			CONTROL_BY_AI:
-				; Checar si la pelota está por encima de la paleta (BALL_X + BALL_SIZE < PADDLE_RIGHT_Y)
-				; Si lo está, entonces mover hacia arriba
-				MOV AX,BALL_Y
-				ADD AX,BALL_SIZE
-				CMP AX,PADDLE_RIGHT_Y
-				JL MOVE_RIGHT_PADDLE_UP
+				CMP BALL_VELOCITY_X,00h			; La pelota se aleja: la IA no se mueve
+				JL EXIT_PADDLE_MOVEMENT
+				; Calcular el centro de la paleta: PADDLE_RIGHT_Y + PADDLE_HEIGHT / 2
+				MOV AX,PADDLE_HEIGHT
+				SHR AX,1						; AX = mitad de la altura de la paleta
+				ADD AX,PADDLE_RIGHT_Y			; AX = centro de la paleta
 				
-				; Checar si la pelota está por debajo de la paleta (BALL_Y > PADDLE_RIGHT_Y + PADDLE_HEIGHT)
-				; Si lo está, entonces mover hacia abajo
-				MOV AX,PADDLE_RIGHT_Y
-				ADD AX,PADDLE_HEIGHT
-				CMP AX,BALL_Y
-				JL MOVE_RIGHT_PADDLE_DOWN
+				; Calcular el centro de la pelota: BALL_Y + BALL_SIZE / 2
+				MOV BX,BALL_SIZE
+				SHR BX,1						; BX = mitad del tamaño de la pelota
+				ADD BX,BALL_Y					; BX = centro de la pelota
+				
+				; Distancia vertical: positiva si la pelota está abajo, negativa si está arriba
+				SUB BX,AX						; BX = centro de la pelota - centro de la paleta
+				
+				; Si la pelota está más abajo que el margen, bajar la paleta
+				CMP BX,AI_DEADZONE
+				JG AI_MOVE_RIGHT_PADDLE_DOWN
+				
+				; Si la pelota está más arriba que el margen, subir la paleta
+				MOV AX,AI_DEADZONE
+				NEG AX							; AX = -margen
+				CMP BX,AX
+				JL AI_MOVE_RIGHT_PADDLE_UP
 								
-				; Si ninguna de las anteriores condiciones es verdad, entonces no mover la paleta (salir del movimiento de la paleta)
+				; La pelota está centrada frente a la paleta: no moverla
 				JMP EXIT_PADDLE_MOVEMENT
 		
 			MOVE_RIGHT_PADDLE_UP:
 				MOV AX,PADDLE_VELOCITY
+				JMP APPLY_RIGHT_PADDLE_UP
+				
+			AI_MOVE_RIGHT_PADDLE_UP:
+				MOV AX,AI_PADDLE_VELOCITY
+			
+			APPLY_RIGHT_PADDLE_UP:
 				SUB PADDLE_RIGHT_Y,AX
 				
 				MOV AX,WINDOW_BOUNDS
@@ -366,7 +392,14 @@ CODE SEGMENT PARA 'CODE'
 			
 			MOVE_RIGHT_PADDLE_DOWN:
 				MOV AX,PADDLE_VELOCITY
+				JMP APPLY_RIGHT_PADDLE_DOWN
+				
+			AI_MOVE_RIGHT_PADDLE_DOWN:
+				MOV AX,AI_PADDLE_VELOCITY
+				
+			APPLY_RIGHT_PADDLE_DOWN:
 				ADD PADDLE_RIGHT_Y,AX
+			
 				MOV AX,WINDOW_HEIGHT
 				SUB AX,WINDOW_BOUNDS
 				SUB AX,PADDLE_HEIGHT
@@ -390,6 +423,7 @@ CODE SEGMENT PARA 'CODE'
 		
 		MOV AX,BALL_ORIGINAL_Y
 		MOV BALL_Y,AX
+		MOV BALL_SERVE_DELAY,12h
 		
 		RET
 	RESET_BALL_POSITION ENDP
@@ -701,13 +735,13 @@ CODE SEGMENT PARA 'CODE'
 		START_SINGLEPLAYER:
 			MOV CURRENT_SCENE,01h
 			MOV GAME_ACTIVE,01h
-			MOV AI_CONTROLLED,00h
+			MOV AI_CONTROLLED,01h
 			RET
 			
 		START_MULTIPLAYER:
 			MOV CURRENT_SCENE,01h
 			MOV GAME_ACTIVE,01h
-			MOV AI_CONTROLLED,01h
+			MOV AI_CONTROLLED,00h
 			RET
 		
 		EXIT_GAME:
