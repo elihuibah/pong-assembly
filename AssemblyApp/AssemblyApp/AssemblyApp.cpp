@@ -77,6 +77,13 @@ char TEXT_CREDITS_1[] = "Project by Mariana Flores,";
 char TEXT_CREDITS_2[] = "Elihu Ibarra & Leonardo Piedras";
 unsigned char KEY_PRESSED = 0;
 
+void MoveBall();
+void MovePaddles();
+void DrawString();
+void DrawUI();
+void DrawBall();
+void DrawPaddles();
+
 
 // One glyph: which character it is + its 8x8 picture (1 byte per row, bit 7 = leftmost pixel)
 struct Glyph {
@@ -173,6 +180,158 @@ void UpdateTextPlayerTwoPoints(){
 
 }
 
+
+void UpdateWinnerText() {
+    __asm {
+        mov  al, WINNER_INDEX; AL = 1 o 2
+        add  al, 30h; AL = '1' o '2'
+        mov  byte ptr[TEXT_GAME_OVER_WINNER + 7], al; reemplazar el '0' de "Player 0 won!"
+    }
+    
+}
+
+void DrawGameOverMenu() {
+    __asm {
+        call ClearScreen; CALL CLEAR_SCREEN
+
+        ; Titulo del menu de Game Over
+        mov  CURSOR_ROW, 04h
+        mov  CURSOR_COL, 04h
+        lea  eax, TEXT_GAME_OVER_TITLE
+        mov  STRING_PTR, eax
+        call DrawString
+
+        ; Ganador
+        mov  CURSOR_ROW, 06h
+        mov  CURSOR_COL, 04h
+        call UpdateWinnerText; CALL UDPATE_WINNER_TEXT
+        lea  eax, TEXT_GAME_OVER_WINNER
+        mov  STRING_PTR, eax
+        call DrawString
+
+        ; Jugar de nuevo
+        mov  CURSOR_ROW, 08h
+        mov  CURSOR_COL, 04h
+        lea  eax, TEXT_GAME_OVER_PLAY_AGAIN
+        mov  STRING_PTR, eax
+        call DrawString
+
+        ; Menu principal
+        mov  CURSOR_ROW, 0Ah
+        mov  CURSOR_COL, 04h
+        lea  eax, TEXT_GAME_OVER_MAIN_MENU
+        mov  STRING_PTR, eax
+        call DrawString
+
+        ; Was: MOV AH, 00h / INT 16h(esperar tecla)->revisar la tecla de este cuadro
+        mov  al, KEY_PRESSED
+        cmp  al, 'R'
+        je   RESTART_GAME
+        cmp  al, 'r'
+        je   RESTART_GAME
+        cmp  al, 'E'
+        je   EXIT_TO_MAIN_MENU
+        cmp  al, 'e'
+        je   EXIT_TO_MAIN_MENU
+        jmp  END_GAME_OVER_MENU; instead of RET
+
+        RESTART_GAME :
+        mov  GAME_ACTIVE, 01h
+            jmp  END_GAME_OVER_MENU; instead of RET
+
+            EXIT_TO_MAIN_MENU :
+        mov  GAME_ACTIVE, 00h
+            mov  CURRENT_SCENE, 00h
+
+            END_GAME_OVER_MENU :
+        nop
+    }
+}
+
+void DrawMainMenu() {
+    __asm {
+        call ClearScreen
+
+        mov  CURSOR_ROW, 04h; Titulo
+        mov  CURSOR_COL, 04h
+        lea  eax, TEXT_MAIN_MENU_TITLE
+        mov  STRING_PTR, eax
+        call DrawString
+
+        mov  CURSOR_ROW, 06h; Un jugador
+        mov  CURSOR_COL, 04h
+        lea  eax, TEXT_MAIN_MENU_SINGLEPLAYER
+        mov  STRING_PTR, eax
+        call DrawString
+
+        mov  CURSOR_ROW, 08h; Multijugador
+        mov  CURSOR_COL, 04h
+        lea  eax, TEXT_MAIN_MENU_MULTIPLAYER
+        mov  STRING_PTR, eax
+        call DrawString
+
+        mov  CURSOR_ROW, 0Ah; Salir
+        mov  CURSOR_COL, 04h
+        lea  eax, TEXT_MAIN_MENU_EXIT
+        mov  STRING_PTR, eax
+        call DrawString
+
+        mov  CURSOR_ROW, 0Dh; Creditos 1
+        mov  CURSOR_COL, 04h
+        lea  eax, TEXT_CREDITS_1
+        mov  STRING_PTR, eax
+        call DrawString
+
+        mov  CURSOR_ROW, 0Fh; Creditos 2
+        mov  CURSOR_COL, 04h
+        lea  eax, TEXT_CREDITS_2
+        mov  STRING_PTR, eax
+        call DrawString
+
+        ; Was MAIN_MENU_WAIT_FOR_KEY : MOV AH, 00h / INT 16h
+        mov  al, KEY_PRESSED
+        cmp  al, 'S'
+        je   START_SINGLEPLAYER
+        cmp  al, 's'
+        je   START_SINGLEPLAYER
+        cmp  al, 'M'
+        je   START_MULTIPLAYER
+        cmp  al, 'm'
+        je   START_MULTIPLAYER
+        cmp  al, 'E'
+        je   EXIT_GAME
+        cmp  al, 'e'
+        je   EXIT_GAME
+        jmp  END_MAIN_MENU; was JMP MAIN_MENU_WAIT_FOR_KEY : we don't block,
+        ; the next frame checks again
+
+        START_SINGLEPLAYER :
+        mov  CURRENT_SCENE, 01h
+            mov  GAME_ACTIVE, 01h
+            mov  AI_CONTROLLED, 01h
+            jmp  END_MAIN_MENU
+
+            START_MULTIPLAYER :
+        mov  CURRENT_SCENE, 01h
+            mov  GAME_ACTIVE, 01h
+            mov  AI_CONTROLLED, 00h
+            jmp  END_MAIN_MENU
+
+            EXIT_GAME :
+        mov  EXITING_GAME, 01h
+
+            END_MAIN_MENU :
+        nop
+    }
+}
+
+// Was CONCLUDE_EXIT_GAME: INT 10h (back to text mode) + INT 21h AH=4Ch (end the program).
+// In Windows we just end the main loop; main() returns and the OS closes the process.
+void ConcludeExitGame(){
+    __asm {
+        mov byte ptr running, 0
+    }
+}
 
 
 
@@ -321,7 +480,7 @@ void ReadKeyPressed() {
     for (int i = 0; i < 4; i++) {
         char k = menuKeys[i];
         bool isDown = (GetAsyncKeyState(k) & 0x8000) != 0;
-        if (isDown && !keyWasDown) {
+        if (isDown && !keyWasDown[k]) {
             KEY_PRESSED = k;
         }
         keyWasDown[k] = isDown;
@@ -568,6 +727,40 @@ void DrawPaddles() {
             jng  DRAW_PADDLE_RIGHT_HORIZONTAL
     }
 }
+//was the scene checks of MAIN / CHECKTIME
+void RunFrame() {
+    __asm {
+        cmp  EXITING_GAME, 01h
+        je   START_EXIT_PROCESS
+        cmp  CURRENT_SCENE, 00h
+        je   SHOW_MAIN_MENU
+        cmp  GAME_ACTIVE, 00h
+        je   SHOW_GAME_OVER
+
+        ; Juego activo : el mismo orden que en DOS
+        call ClearScreen
+        call MoveBall
+        call DrawBall
+        call MovePaddles
+        call DrawPaddles
+        call DrawUI
+        jmp  END_FRAME; was JMP CHECK_TIME
+
+        SHOW_GAME_OVER :
+        call DrawGameOverMenu
+            jmp  END_FRAME
+
+            SHOW_MAIN_MENU :
+        call DrawMainMenu
+            jmp  END_FRAME
+
+            START_EXIT_PROCESS :
+        call ConcludeExitGame
+
+            END_FRAME :
+        nop
+    }
+}
 
 // ===================== WINDOW (boilerplate) =====================
 
@@ -638,6 +831,7 @@ void Present(HWND hwnd) {
 
 int main()
 {
+    InitFont(); //builds the font table once
     HWND hwnd = CreateGameWindow();
     while (running) {
         MSG msg;
@@ -647,17 +841,9 @@ int main()
         }
 
         ReadKeys();
-        ClearScreen();
-        MoveBall();
-        DrawBall();
-        MovePaddles();
-        DrawPaddles();
-        DrawUI();
+        ReadKeyPressed();
+        RunFrame();
         Present(hwnd);
-        //temporal: until DRAW_GAME_OVER_MENU is ported, restart right away
-        if (GAME_ACTIVE == 0) {
-            GAME_ACTIVE = 1;
-        }
         Sleep(55);
 
     }
