@@ -69,6 +69,8 @@ char TEXT_CREDITS_1[] = "Project by Mariana Flores,";
 char TEXT_CREDITS_2[] = "Elihu Ibarra & Leonardo Piedras";
 unsigned char KEY_PRESSED = 0;
 char TEXT_GAME_HINT_ESC[] = "ESC - MENU";
+char TEXT_MODE_SINGLEPLAYER[] = "SINGLEPLAYER";
+char TEXT_MODE_MULTIPLAYER[] = "MULTIPLAYER";
 void MoveBall();
 void MovePaddles();
 void DrawString();
@@ -701,7 +703,18 @@ void DrawUI() {
         mov STRING_PTR,eax
         call DrawString
 
-
+        ; Modo de juego(arriba al centro)
+        mov  CURSOR_ROW, 01h; fila 1, arriba de los puntajes
+        mov  CURSOR_COL, 0Eh; columna 14, centrado aprox.
+        cmp  AI_CONTROLLED, 01h; 1 = un jugador(IA)
+        je   UI_MODE_SINGLEPLAYER
+        lea  eax, TEXT_MODE_MULTIPLAYER
+        jmp  UI_DRAW_MODE
+        UI_MODE_SINGLEPLAYER :
+        lea  eax, TEXT_MODE_SINGLEPLAYER
+            UI_DRAW_MODE :
+        mov  STRING_PTR, eax
+            call DrawString
     }
 }
 
