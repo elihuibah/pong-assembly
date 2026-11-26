@@ -34,26 +34,20 @@ short PADDLE_LEFT_Y = 0x0A;
 short PADDLE_RIGHT_X = 0x130;
 short PADDLE_RIGHT_Y = 0x0A;
 short PADDLE_VELOCITY = 5;
-
-
 // Key configuration that replaces short 16h in asm
-
 short KEY_W = 0;
 short KEY_S = 0;
 short KEY_O = 0;
 short KEY_L = 0;
 // 1 = key is held down
 bool running = true; // if running is true, the game loop continues; if false, the game loop ends
-
 // Player points
 unsigned char PLAYER_ONE_POINTS = 0; // LEFT PLAYER SCORE
 unsigned char PLAYER_TWO_POINTS = 0; // RIGHT PLAYER SCORE
 unsigned char WINNER_INDEX = 0; // 1 or 2 when someone wins
 unsigned char GAME_ACTIVE = 1; //1 = playing 0 = game over
-
 char TEXT_PLAYER_ONE_POINTS[] = "0";
 char TEXT_PLAYER_TWO_POINTS[] = "0";
-
 unsigned char CURSOR_ROW = 0;
 unsigned char CURSOR_COL = 0;
 char* STRING_PTR = nullptr;
@@ -63,7 +57,6 @@ unsigned char AI_CONTROLLED = 0;
 short AI_DEADZONE = 0x03; // DW 03h -> margen (px) en el que la IA no mueve la paleta
 short  AI_PADDLE_VELOCITY = 0x02;// DW 02h -> velocidad de la paleta de la IA
 unsigned char BALL_SERVE_DELAY = 0x12;// DB 12h -> cuadros de espera antes de mover la pelota
-
 char TEXT_GAME_OVER_TITLE[] = "GAME OVER";
 char TEXT_GAME_OVER_WINNER[] = "Player 0 won!";
 char TEXT_GAME_OVER_PLAY_AGAIN[] = "Press R to play again";
@@ -75,7 +68,7 @@ char TEXT_MAIN_MENU_EXIT[] = "EXIT GAME - E KEY";
 char TEXT_CREDITS_1[] = "Project by Mariana Flores,";
 char TEXT_CREDITS_2[] = "Elihu Ibarra & Leonardo Piedras";
 unsigned char KEY_PRESSED = 0;
-
+char TEXT_GAME_HINT_ESC[] = "ESC - MENU";
 void MoveBall();
 void MovePaddles();
 void DrawString();
@@ -333,7 +326,23 @@ void ConcludeExitGame(){
     }
 }
 
+// Sale de la partida al menu principal con ESC 
+void CheckExitDuringGame() {
+    __asm {
+        cmp  KEY_PRESSED, 1Bh; se presiono ESC ? (VK_ESCAPE = 1Bh)
+        jne  END_CHECK_EXIT_DURING_GAME
 
+        mov  PLAYER_ONE_POINTS, 00h; reiniciar marcador
+        mov  PLAYER_TWO_POINTS, 00h
+        call UpdateTextPlayerOnePoints; el texto vuelve a "0"
+        call UpdateTextPlayerTwoPoints
+        call ResetBallPosition; pelota al centro + retraso de saque
+        mov  CURRENT_SCENE, 00h; escena 0 = menu principal
+
+        END_CHECK_EXIT_DURING_GAME :
+        nop
+    }
+}
 
 void MoveBall() {
     __asm {
@@ -684,6 +693,15 @@ void DrawUI() {
         lea  eax, TEXT_PLAYER_TWO_POINTS
         mov  STRING_PTR, eax
         call DrawString
+
+        ; Ayuda: ESC para volver al menú
+        mov CURSOR_ROW, 17h
+        mov CURSOR_COL, 0Fh
+        lea eax, TEXT_GAME_HINT_ESC
+        mov STRING_PTR,eax
+        call DrawString
+
+
     }
 }
 
@@ -770,24 +788,7 @@ void DrawPaddles() {
             jng  DRAW_PADDLE_RIGHT_HORIZONTAL
     }
 }
-//was the scene checks of MAIN / CHECKTIME
-// Sale de la partida al menu principal con ESC (no existe en la version DOS)
-void CheckExitDuringGame() {
-    __asm {
-        cmp  KEY_PRESSED, 1Bh; se presiono ESC ?
-        jne  END_CHECK_EXIT_DURING_GAME
 
-        mov  PLAYER_ONE_POINTS, 00h; reiniciar marcador
-        mov  PLAYER_TWO_POINTS, 00h
-        call UpdateTextPlayerOnePoints
-        call UpdateTextPlayerTwoPoints
-        call ResetBallPosition; pelota al centro + retraso de saque
-        mov  CURRENT_SCENE, 00h; escena 0 = menu principal
-
-        END_CHECK_EXIT_DURING_GAME :
-        nop
-    }
-}
 void RunFrame() {
     __asm {
         cmp  EXITING_GAME, 01h
@@ -798,6 +799,9 @@ void RunFrame() {
         je   SHOW_GAME_OVER
 
         ; Juego activo : el mismo orden que en DOS
+        call CheckExitDuringGame; NUEVO: ESC->menu principal
+        cmp  CURRENT_SCENE, 00h; salimos al menu ?
+        je   END_FRAME; no mover ni dibujar la partida este cuadro
         call ClearScreen
         call MoveBall
         call DrawBall
