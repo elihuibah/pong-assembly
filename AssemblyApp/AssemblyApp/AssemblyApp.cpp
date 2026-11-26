@@ -61,19 +61,95 @@ char TEXT_PLAYER_TWO_POINTS[] = "0";
 unsigned char CURSOR_ROW = 0;
 unsigned char CURSOR_COL = 0;
 char* STRING_PTR = nullptr;
-// 8x8 font for digits '0'..'9'. 1 byte per row, bit 7 = leftmost pixel.
-unsigned char FONT_DIGITS[10][8] = {
-    {0x3C,0x66,0x6E,0x76,0x66,0x66,0x3C,0x00}, // 0
-    {0x18,0x38,0x18,0x18,0x18,0x18,0x7E,0x00}, // 1
-    {0x3C,0x66,0x06,0x0C,0x30,0x60,0x7E,0x00}, // 2
-    {0x3C,0x66,0x06,0x1C,0x06,0x66,0x3C,0x00}, // 3
-    {0x0C,0x1C,0x3C,0x6C,0x7E,0x0C,0x0C,0x00}, // 4
-    {0x7E,0x60,0x7C,0x06,0x06,0x66,0x3C,0x00}, // 5
-    {0x3C,0x66,0x60,0x7C,0x66,0x66,0x3C,0x00}, // 6
-    {0x7E,0x66,0x0C,0x18,0x18,0x18,0x18,0x00}, // 7
-    {0x3C,0x66,0x66,0x3C,0x66,0x66,0x3C,0x00}, // 8
-    {0x3C,0x66,0x66,0x3E,0x06,0x66,0x3C,0x00}  // 9
+unsigned char CURRENT_SCENE = 0;
+unsigned char EXITING_GAME = 0;
+unsigned char AI_CONTROLLED = 0;
+
+char TEXT_GAME_OVER_TITLE[] = "GAME OVER";
+char TEXT_GAME_OVER_WINNER[] = "Player 0 won!";
+char TEXT_GAME_OVER_PLAY_AGAIN[] = "Press R to play again";
+char TEXT_GAME_OVER_MAIN_MENU[] = "Press E to exit to main menu";
+char TEXT_MAIN_MENU_TITLE[] = "PONG ASSEMBLY | MAIN MENU";
+char TEXT_MAIN_MENU_SINGLEPLAYER[] = "SINGLEPLAYER - S KEY";
+char TEXT_MAIN_MENU_MULTIPLAYER[] = "MULTIPLAYER - M KEY";
+char TEXT_MAIN_MENU_EXIT[] = "EXIT GAME - E KEY";
+char TEXT_CREDITS_1[] = "Project by Mariana Flores,";
+char TEXT_CREDITS_2[] = "Elihu Ibarra & Leonardo Piedras";
+unsigned char KEY_PRESSED = 0;
+
+void MoveBall();
+void MovePaddles();
+void DrawString();
+void DrawUI();
+void DrawBall();
+void DrawPaddles();
+
+
+// One glyph: which character it is + its 8x8 picture (1 byte per row, bit 7 = leftmost pixel)
+struct Glyph {
+    char character;
+    unsigned char rows[8];
 };
+
+// Only the characters the game uses. Lowercase is drawn as uppercase (see DrawString).
+const Glyph GLYPHS[] = {
+    {'!', {0x18,0x18,0x18,0x18,0x00,0x00,0x18,0x00}},
+    {'&', {0x38,0x6C,0x38,0x76,0xDC,0xCC,0x76,0x00}},
+    {',', {0x00,0x00,0x00,0x00,0x00,0x18,0x18,0x30}},
+    {'-', {0x00,0x00,0x00,0x7E,0x00,0x00,0x00,0x00}},
+    {'|', {0x18,0x18,0x18,0x18,0x18,0x18,0x18,0x00}},
+    {'0', {0x3C,0x66,0x6E,0x76,0x66,0x66,0x3C,0x00}},
+    {'1', {0x18,0x38,0x18,0x18,0x18,0x18,0x7E,0x00}},
+    {'2', {0x3C,0x66,0x06,0x0C,0x30,0x60,0x7E,0x00}},
+    {'3', {0x3C,0x66,0x06,0x1C,0x06,0x66,0x3C,0x00}},
+    {'4', {0x0C,0x1C,0x3C,0x6C,0x7E,0x0C,0x0C,0x00}},
+    {'5', {0x7E,0x60,0x7C,0x06,0x06,0x66,0x3C,0x00}},
+    {'6', {0x3C,0x66,0x60,0x7C,0x66,0x66,0x3C,0x00}},
+    {'7', {0x7E,0x66,0x0C,0x18,0x18,0x18,0x18,0x00}},
+    {'8', {0x3C,0x66,0x66,0x3C,0x66,0x66,0x3C,0x00}},
+    {'9', {0x3C,0x66,0x66,0x3E,0x06,0x66,0x3C,0x00}},
+    {'A', {0x18,0x3C,0x66,0x66,0x7E,0x66,0x66,0x00}},
+    {'B', {0x7C,0x66,0x66,0x7C,0x66,0x66,0x7C,0x00}},
+    {'C', {0x3C,0x66,0x60,0x60,0x60,0x66,0x3C,0x00}},
+    {'D', {0x78,0x6C,0x66,0x66,0x66,0x6C,0x78,0x00}},
+    {'E', {0x7E,0x60,0x60,0x7C,0x60,0x60,0x7E,0x00}},
+    {'F', {0x7E,0x60,0x60,0x7C,0x60,0x60,0x60,0x00}},
+    {'G', {0x3C,0x66,0x60,0x6E,0x66,0x66,0x3C,0x00}},
+    {'H', {0x66,0x66,0x66,0x7E,0x66,0x66,0x66,0x00}},
+    {'I', {0x3C,0x18,0x18,0x18,0x18,0x18,0x3C,0x00}},
+    {'J', {0x1E,0x0C,0x0C,0x0C,0x0C,0x6C,0x38,0x00}},
+    {'K', {0x66,0x6C,0x78,0x70,0x78,0x6C,0x66,0x00}},
+    {'L', {0x60,0x60,0x60,0x60,0x60,0x60,0x7E,0x00}},
+    {'M', {0x63,0x77,0x7F,0x6B,0x63,0x63,0x63,0x00}},
+    {'N', {0x66,0x76,0x7E,0x7E,0x6E,0x66,0x66,0x00}},
+    {'O', {0x3C,0x66,0x66,0x66,0x66,0x66,0x3C,0x00}},
+    {'P', {0x7C,0x66,0x66,0x7C,0x60,0x60,0x60,0x00}},
+    {'Q', {0x3C,0x66,0x66,0x66,0x66,0x3C,0x0E,0x00}},
+    {'R', {0x7C,0x66,0x66,0x7C,0x78,0x6C,0x66,0x00}},
+    {'S', {0x3C,0x66,0x60,0x3C,0x06,0x66,0x3C,0x00}},
+    {'T', {0x7E,0x18,0x18,0x18,0x18,0x18,0x18,0x00}},
+    {'U', {0x66,0x66,0x66,0x66,0x66,0x66,0x3C,0x00}},
+    {'V', {0x66,0x66,0x66,0x66,0x66,0x3C,0x18,0x00}},
+    {'W', {0x63,0x63,0x63,0x6B,0x7F,0x77,0x63,0x00}},
+    {'X', {0x66,0x66,0x3C,0x18,0x3C,0x66,0x66,0x00}},
+    {'Y', {0x66,0x66,0x66,0x3C,0x18,0x18,0x18,0x00}},
+    {'Z', {0x7E,0x06,0x0C,0x18,0x30,0x60,0x7E,0x00}}
+};
+
+// FONT[c] = glyph of ASCII code c. Global arrays start as all zeros, so missing characters
+// (like the space) are drawn as blank cells.
+unsigned char FONT[128][8];
+
+// Copies each glyph from the list into its slot in FONT. Call once at start-up.
+void InitFont() {
+    int count = sizeof(GLYPHS) / sizeof(GLYPHS[0]);      // number of glyphs in the list
+    for (int g = 0; g < count; g++) {
+        unsigned char c = (unsigned char)GLYPHS[g].character;
+        for (int row = 0; row < 8; row++) {
+            FONT[c][row] = GLYPHS[g].rows[row];
+        }
+    }
+}
 
 void ResetBallPosition() {
     __asm {
@@ -104,6 +180,158 @@ void UpdateTextPlayerTwoPoints(){
 
 }
 
+
+void UpdateWinnerText() {
+    __asm {
+        mov  al, WINNER_INDEX; AL = 1 o 2
+        add  al, 30h; AL = '1' o '2'
+        mov  byte ptr[TEXT_GAME_OVER_WINNER + 7], al; reemplazar el '0' de "Player 0 won!"
+    }
+    
+}
+
+void DrawGameOverMenu() {
+    __asm {
+        call ClearScreen; CALL CLEAR_SCREEN
+
+        ; Titulo del menu de Game Over
+        mov  CURSOR_ROW, 04h
+        mov  CURSOR_COL, 04h
+        lea  eax, TEXT_GAME_OVER_TITLE
+        mov  STRING_PTR, eax
+        call DrawString
+
+        ; Ganador
+        mov  CURSOR_ROW, 06h
+        mov  CURSOR_COL, 04h
+        call UpdateWinnerText; CALL UDPATE_WINNER_TEXT
+        lea  eax, TEXT_GAME_OVER_WINNER
+        mov  STRING_PTR, eax
+        call DrawString
+
+        ; Jugar de nuevo
+        mov  CURSOR_ROW, 08h
+        mov  CURSOR_COL, 04h
+        lea  eax, TEXT_GAME_OVER_PLAY_AGAIN
+        mov  STRING_PTR, eax
+        call DrawString
+
+        ; Menu principal
+        mov  CURSOR_ROW, 0Ah
+        mov  CURSOR_COL, 04h
+        lea  eax, TEXT_GAME_OVER_MAIN_MENU
+        mov  STRING_PTR, eax
+        call DrawString
+
+        ; Was: MOV AH, 00h / INT 16h(esperar tecla)->revisar la tecla de este cuadro
+        mov  al, KEY_PRESSED
+        cmp  al, 'R'
+        je   RESTART_GAME
+        cmp  al, 'r'
+        je   RESTART_GAME
+        cmp  al, 'E'
+        je   EXIT_TO_MAIN_MENU
+        cmp  al, 'e'
+        je   EXIT_TO_MAIN_MENU
+        jmp  END_GAME_OVER_MENU; instead of RET
+
+        RESTART_GAME :
+        mov  GAME_ACTIVE, 01h
+            jmp  END_GAME_OVER_MENU; instead of RET
+
+            EXIT_TO_MAIN_MENU :
+        mov  GAME_ACTIVE, 00h
+            mov  CURRENT_SCENE, 00h
+
+            END_GAME_OVER_MENU :
+        nop
+    }
+}
+
+void DrawMainMenu() {
+    __asm {
+        call ClearScreen
+
+        mov  CURSOR_ROW, 04h; Titulo
+        mov  CURSOR_COL, 04h
+        lea  eax, TEXT_MAIN_MENU_TITLE
+        mov  STRING_PTR, eax
+        call DrawString
+
+        mov  CURSOR_ROW, 06h; Un jugador
+        mov  CURSOR_COL, 04h
+        lea  eax, TEXT_MAIN_MENU_SINGLEPLAYER
+        mov  STRING_PTR, eax
+        call DrawString
+
+        mov  CURSOR_ROW, 08h; Multijugador
+        mov  CURSOR_COL, 04h
+        lea  eax, TEXT_MAIN_MENU_MULTIPLAYER
+        mov  STRING_PTR, eax
+        call DrawString
+
+        mov  CURSOR_ROW, 0Ah; Salir
+        mov  CURSOR_COL, 04h
+        lea  eax, TEXT_MAIN_MENU_EXIT
+        mov  STRING_PTR, eax
+        call DrawString
+
+        mov  CURSOR_ROW, 0Dh; Creditos 1
+        mov  CURSOR_COL, 04h
+        lea  eax, TEXT_CREDITS_1
+        mov  STRING_PTR, eax
+        call DrawString
+
+        mov  CURSOR_ROW, 0Fh; Creditos 2
+        mov  CURSOR_COL, 04h
+        lea  eax, TEXT_CREDITS_2
+        mov  STRING_PTR, eax
+        call DrawString
+
+        ; Was MAIN_MENU_WAIT_FOR_KEY : MOV AH, 00h / INT 16h
+        mov  al, KEY_PRESSED
+        cmp  al, 'S'
+        je   START_SINGLEPLAYER
+        cmp  al, 's'
+        je   START_SINGLEPLAYER
+        cmp  al, 'M'
+        je   START_MULTIPLAYER
+        cmp  al, 'm'
+        je   START_MULTIPLAYER
+        cmp  al, 'E'
+        je   EXIT_GAME
+        cmp  al, 'e'
+        je   EXIT_GAME
+        jmp  END_MAIN_MENU; was JMP MAIN_MENU_WAIT_FOR_KEY : we don't block,
+        ; the next frame checks again
+
+        START_SINGLEPLAYER :
+        mov  CURRENT_SCENE, 01h
+            mov  GAME_ACTIVE, 01h
+            mov  AI_CONTROLLED, 01h
+            jmp  END_MAIN_MENU
+
+            START_MULTIPLAYER :
+        mov  CURRENT_SCENE, 01h
+            mov  GAME_ACTIVE, 01h
+            mov  AI_CONTROLLED, 00h
+            jmp  END_MAIN_MENU
+
+            EXIT_GAME :
+        mov  EXITING_GAME, 01h
+
+            END_MAIN_MENU :
+        nop
+    }
+}
+
+// Was CONCLUDE_EXIT_GAME: INT 10h (back to text mode) + INT 21h AH=4Ch (end the program).
+// In Windows we just end the main loop; main() returns and the OS closes the process.
+void ConcludeExitGame(){
+    __asm {
+        mov byte ptr running, 0
+    }
+}
 
 
 
@@ -245,6 +473,21 @@ void ReadKeys() {
     if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) running = false;   // Esc = quit
 }
 
+bool keyWasDown[256] = {};
+void ReadKeyPressed() {
+    const char menuKeys[] = { 'R','E','S','M' };
+    KEY_PRESSED = 0;
+    for (int i = 0; i < 4; i++) {
+        char k = menuKeys[i];
+        bool isDown = (GetAsyncKeyState(k) & 0x8000) != 0;
+        if (isDown && !keyWasDown[k]) {
+            KEY_PRESSED = k;
+        }
+        keyWasDown[k] = isDown;
+    }
+}
+
+
 
 // Was MOVE_PADDLES
 void MovePaddles() {
@@ -327,18 +570,22 @@ void DrawString() {
             cmp   al, 0; '\0' = end of string(DOS used '$')
             je    END_STRING
 
-            ; --- only digits for now: skip anything outside '0'..'9' -- -
-            cmp   al, '0'
-            jb    ADVANCE_CURSOR; below '0'  -> not a digit
-            cmp   al, '9'
-            ja    ADVANCE_CURSOR; above '9'  -> not a digit
-            sub   al, 30h; ASCII->number('2' -> 2)
+            ; --- lowercase->uppercase: 'a'..'z' -> 'A'..'Z' -- -
+            cmp   al, 'a'
+            jb    LOOKUP_GLYPH
+            cmp   al, 'z'
+            ja    LOOKUP_GLYPH
+            sub   al, 20h; 'a' (61h) - 20h = 'A' (41h)
 
-            ; --- EBX->glyph = FONT_DIGITS + digit * 8 -- -
-            lea   ebx, FONT_DIGITS
-            shl   eax, 3; EAX = digit * 8
+            LOOKUP_GLYPH:
+        cmp   al, 7Fh; outside the ASCII table->skip
+            ja    ADVANCE_CURSOR
+
+            ; --- EBX->glyph = FONT + character * 8 -- -
+            lea   ebx, FONT
+            shl   eax, 3; EAX = character code * 8
             add   ebx, eax
-
+        
             ; --- EDI->top - left pixel of the cell-- -
             movzx edi, CURSOR_ROW
             shl   edi, 3; y = row * 8
@@ -480,6 +727,40 @@ void DrawPaddles() {
             jng  DRAW_PADDLE_RIGHT_HORIZONTAL
     }
 }
+//was the scene checks of MAIN / CHECKTIME
+void RunFrame() {
+    __asm {
+        cmp  EXITING_GAME, 01h
+        je   START_EXIT_PROCESS
+        cmp  CURRENT_SCENE, 00h
+        je   SHOW_MAIN_MENU
+        cmp  GAME_ACTIVE, 00h
+        je   SHOW_GAME_OVER
+
+        ; Juego activo : el mismo orden que en DOS
+        call ClearScreen
+        call MoveBall
+        call DrawBall
+        call MovePaddles
+        call DrawPaddles
+        call DrawUI
+        jmp  END_FRAME; was JMP CHECK_TIME
+
+        SHOW_GAME_OVER :
+        call DrawGameOverMenu
+            jmp  END_FRAME
+
+            SHOW_MAIN_MENU :
+        call DrawMainMenu
+            jmp  END_FRAME
+
+            START_EXIT_PROCESS :
+        call ConcludeExitGame
+
+            END_FRAME :
+        nop
+    }
+}
 
 // ===================== WINDOW (boilerplate) =====================
 
@@ -550,6 +831,7 @@ void Present(HWND hwnd) {
 
 int main()
 {
+    InitFont(); //builds the font table once
     HWND hwnd = CreateGameWindow();
     while (running) {
         MSG msg;
@@ -559,17 +841,9 @@ int main()
         }
 
         ReadKeys();
-        ClearScreen();
-        MoveBall();
-        DrawBall();
-        MovePaddles();
-        DrawPaddles();
-        DrawUI();
+        ReadKeyPressed();
+        RunFrame();
         Present(hwnd);
-        //temporal: until DRAW_GAME_OVER_MENU is ported, restart right away
-        if (GAME_ACTIVE == 0) {
-            GAME_ACTIVE = 1;
-        }
         Sleep(55);
 
     }
