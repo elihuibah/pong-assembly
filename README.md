@@ -23,6 +23,7 @@ The game logic (ball physics, collisions, paddles, AI, score and menus) is **the
 - **Serve delay:** the ball waits about 1 second before each serve.
 - **Game Over screen:** shows the winner. You can play again or go back to the menu.
 - **ESC during a game** returns to the main menu. This is available in the Windows version only.
+- **Mode indicator:** shows SINGLEPLAYER or MULTIPLAYER at the top of the screen.
 
 ## Controls
 
