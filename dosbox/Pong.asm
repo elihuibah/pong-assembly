@@ -585,7 +585,7 @@ CODE SEGMENT PARA 'CODE'
 		MOV DL,04h						; Establecer columna
 		INT 10h
 		
-		CALL UDPATE_WINNER_TEXT
+		CALL UPDATE_WINNER_TEXT
 		
 		MOV AH,09h						; Escribir string a output estándar
 		LEA DX,TEXT_GAME_OVER_WINNER 	; Dar a DX un pointer
@@ -750,14 +750,14 @@ CODE SEGMENT PARA 'CODE'
 		
 	DRAW_MAIN_MENU ENDP
 	
-	UDPATE_WINNER_TEXT PROC NEAR
+	UPDATE_WINNER_TEXT PROC NEAR
 		
 		MOV AL,WINNER_INDEX				; Si el índice del ganador es 1, entonces AL,1
 		ADD AL,30h						;AL,31h => AL,'1'
 		MOV [TEXT_GAME_OVER_WINNER+7],AL ; Actualizar el índice en el texto con el caracter
 		
 		RET
-	UDPATE_WINNER_TEXT ENDP
+	UPDATE_WINNER_TEXT ENDP
 	
 	CLEAR_SCREEN PROC NEAR				; Limpíar la pantalla al reiniciar el modo de video
 		MOV AH,00h 						; Establecer configuración de modo de video
