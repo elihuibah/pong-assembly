@@ -1,8 +1,4 @@
-// AssemblyApp.cpp : Este archivo contiene la función "main". La ejecución del programa comienza y termina ahí.
-//
-
 #include <windows.h>
-
 #define FB_W 320 //framebuffer width
 #define FB_H 200 //framebuffer height
 #define SCALE 3 //scale factor for the framebuffer
@@ -64,6 +60,9 @@ char* STRING_PTR = nullptr;
 unsigned char CURRENT_SCENE = 0;
 unsigned char EXITING_GAME = 0;
 unsigned char AI_CONTROLLED = 0;
+short AI_DEADZONE = 0x03; // DW 03h -> margen (px) en el que la IA no mueve la paleta
+short  AI_PADDLE_VELOCITY = 0x02;// DW 02h -> velocidad de la paleta de la IA
+unsigned char BALL_SERVE_DELAY = 0x12;// DB 12h -> cuadros de espera antes de mover la pelota
 
 char TEXT_GAME_OVER_TITLE[] = "GAME OVER";
 char TEXT_GAME_OVER_WINNER[] = "Player 0 won!";
@@ -157,6 +156,7 @@ void ResetBallPosition() {
         mov BALL_X, ax
         mov ax, BALL_ORIGINAL_Y
         mov BALL_Y, ax
+        mov BALL_SERVE_DELAY, 12h; NEW reiniciar la espera del saque
     }
 }
 
@@ -337,6 +337,13 @@ void ConcludeExitGame(){
 
 void MoveBall() {
     __asm {
+        ; Saque: esperar BALL_SERVE_DELAY cuadros antes de mover la pelota
+        cmp  BALL_SERVE_DELAY, 00h
+        je   START_BALL_MOVEMENT
+        dec  BALL_SERVE_DELAY; un cuadro menos
+        jmp  EXIT_MOVE_BALL; instead of RET
+
+        START_BALL_MOVEMENT :
         ; Mover la pelota horizontalmente
         mov  ax, BALL_VELOCITY_X
         add  BALL_X, ax
@@ -470,14 +477,14 @@ void ReadKeys() {
     KEY_S = (GetAsyncKeyState('S') & 0x8000) ? 1 : 0;
     KEY_O = (GetAsyncKeyState('O') & 0x8000) ? 1 : 0;
     KEY_L = (GetAsyncKeyState('L') & 0x8000) ? 1 : 0;
-    if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) running = false;   // Esc = quit
+    
 }
 
 bool keyWasDown[256] = {};
 void ReadKeyPressed() {
-    const char menuKeys[] = { 'R','E','S','M' };
+    const char menuKeys[] = { 'R','E','S','M', VK_ESCAPE};
     KEY_PRESSED = 0;
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 5; i++) {
         char k = menuKeys[i];
         bool isDown = (GetAsyncKeyState(k) & 0x8000) != 0;
         if (isDown && !keyWasDown[k]) {
@@ -524,14 +531,46 @@ void MovePaddles() {
 
             ; ---- - Paleta derecha---- -
             CHECK_RIGHT_PADDLE_MOVEMENT:
-        cmp  KEY_O, 1
+        cmp  AI_CONTROLLED, 01h
+            je   CONTROL_BY_AI
+
+            CHECK_FOR_KEYS : ; controlada por el jugador(O / L)
+            cmp  KEY_O, 1
             je   MOVE_RIGHT_PADDLE_UP
             cmp  KEY_L, 1
             je   MOVE_RIGHT_PADDLE_DOWN
             jmp  EXIT_PADDLE_MOVEMENT
 
-            MOVE_RIGHT_PADDLE_UP :
-        mov  ax, PADDLE_VELOCITY
+            CONTROL_BY_AI : ; controlada por la IA
+            cmp  BALL_VELOCITY_X, 00h; la pelota se aleja : la IA no se mueve
+            jl   EXIT_PADDLE_MOVEMENT
+
+            mov  ax, PADDLE_HEIGHT
+            shr  ax, 1; AX = mitad de la altura de la paleta
+            add  ax, PADDLE_RIGHT_Y; AX = centro de la paleta
+
+            mov  bx, BALL_SIZE
+            shr  bx, 1; BX = mitad del tamano de la pelota
+            add  bx, BALL_Y; BX = centro de la pelota
+
+            sub  bx, ax; BX = distancia(+abajo, -arriba)
+
+            cmp  bx, AI_DEADZONE; mas abajo que el margen->bajar
+            jg   AI_MOVE_RIGHT_PADDLE_DOWN
+
+            mov  ax, AI_DEADZONE
+            neg  ax; AX = -margen
+            cmp  bx, ax; mas arriba que el margen->subir
+            jl   AI_MOVE_RIGHT_PADDLE_UP
+
+            jmp  EXIT_PADDLE_MOVEMENT; centrada: no moverla
+
+            MOVE_RIGHT_PADDLE_UP : ; jugador: velocidad 5
+            mov  ax, PADDLE_VELOCITY
+            jmp  APPLY_RIGHT_PADDLE_UP
+            AI_MOVE_RIGHT_PADDLE_UP : ; IA: velocidad 2
+            mov  ax, AI_PADDLE_VELOCITY
+            APPLY_RIGHT_PADDLE_UP : ; codigo compartido
             sub  PADDLE_RIGHT_Y, ax
             mov  ax, WINDOW_BOUNDS
             cmp  PADDLE_RIGHT_Y, ax
@@ -543,7 +582,11 @@ void MovePaddles() {
 
             MOVE_RIGHT_PADDLE_DOWN :
         mov  ax, PADDLE_VELOCITY
-            add  PADDLE_RIGHT_Y, ax
+            jmp  APPLY_RIGHT_PADDLE_DOWN
+            AI_MOVE_RIGHT_PADDLE_DOWN :
+        mov  ax, AI_PADDLE_VELOCITY
+            APPLY_RIGHT_PADDLE_DOWN :
+        add  PADDLE_RIGHT_Y, ax
             mov  ax, WINDOW_HEIGHT
             sub  ax, WINDOW_BOUNDS
             sub  ax, PADDLE_HEIGHT
@@ -728,6 +771,23 @@ void DrawPaddles() {
     }
 }
 //was the scene checks of MAIN / CHECKTIME
+// Sale de la partida al menu principal con ESC (no existe en la version DOS)
+void CheckExitDuringGame() {
+    __asm {
+        cmp  KEY_PRESSED, 1Bh; se presiono ESC ?
+        jne  END_CHECK_EXIT_DURING_GAME
+
+        mov  PLAYER_ONE_POINTS, 00h; reiniciar marcador
+        mov  PLAYER_TWO_POINTS, 00h
+        call UpdateTextPlayerOnePoints
+        call UpdateTextPlayerTwoPoints
+        call ResetBallPosition; pelota al centro + retraso de saque
+        mov  CURRENT_SCENE, 00h; escena 0 = menu principal
+
+        END_CHECK_EXIT_DURING_GAME :
+        nop
+    }
+}
 void RunFrame() {
     __asm {
         cmp  EXITING_GAME, 01h
@@ -839,13 +899,11 @@ int main()
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
-
         ReadKeys();
         ReadKeyPressed();
         RunFrame();
         Present(hwnd);
         Sleep(55);
-
     }
     return 0;
 }
